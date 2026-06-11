@@ -41,6 +41,7 @@ import {
   WALL_SPACE_IDS,
   getSpace,
 } from './board'
+import { pickNarrative } from './eventNarratives'
 import { pick, rand, randInt } from './rng'
 import type {
   BadLuckOutcome,
@@ -292,27 +293,27 @@ function landOnSpace(s: GameState): void {
   s.phase = 'SPACE_ACTION'
   switch (type) {
     case 'START':
-      popup(s, '🏁 Case Départ', 'Rien ne se passe ici. Profites-en pour souffler.', 'NEUTRAL')
+      popup(s, '🏁 Case Départ', pickNarrative('START', { name: p.name }), 'NEUTRAL')
       break
     case 'BLUE':
       addCoins(p, s.config.blueCoins)
       log(s, `${p.name} gagne ${s.config.blueCoins} pièces (case bleue)`, 'GOOD')
-      popup(s, '🔵 Case Bleue', `+${s.config.blueCoins} pièces !`, 'GOOD')
+      popup(s, '🔵 Case Bleue', pickNarrative('BLUE', { name: p.name, amount: s.config.blueCoins }), 'GOOD')
       break
     case 'RED':
       addCoins(p, -s.config.redCoins)
       log(s, `${p.name} perd ${s.config.redCoins} pièces (case rouge)`, 'BAD')
-      popup(s, '🔴 Case Rouge', `-${s.config.redCoins} pièces…`, 'BAD')
+      popup(s, '🔴 Case Rouge', pickNarrative('RED', { name: p.name, amount: s.config.redCoins }), 'BAD')
       break
     case 'ITEM': {
       if (p.inventory.length >= MAX_INVENTORY) {
-        popup(s, '🍄 Case Item', 'Inventaire plein (3 max) ! Rien à ramasser.', 'NEUTRAL')
+        popup(s, '🍄 Case Item', pickNarrative('ITEM_FULL', { name: p.name }), 'NEUTRAL')
       } else {
         const itemId = pick(ITEM_POOL)
         p.inventory.push(itemId)
         const item = ITEMS[itemId]
         log(s, `${p.name} obtient ${item.emoji} ${item.name}`, 'GOOD')
-        popup(s, '🍄 Case Item', `Tu obtiens : ${item.emoji} ${item.name} !`, 'GOOD')
+        popup(s, '🍄 Case Item', pickNarrative('ITEM_GET', { name: p.name, item: `${item.emoji} ${item.name}` }), 'GOOD')
       }
       break
     }
@@ -322,13 +323,13 @@ function landOnSpace(s: GameState): void {
         const amount = pick(LUCKY_COINS)
         addCoins(p, amount)
         log(s, `${p.name} gagne ${amount} pièces (case chance)`, 'GOOD')
-        popup(s, '🍀 Case Chance', `La roulette s'arrête sur +${amount} pièces !`, 'GOOD')
+        popup(s, '🍀 Case Chance', pickNarrative('LUCKY_COINS', { name: p.name, amount }), 'GOOD')
       } else {
         const itemId = pick(ITEM_POOL)
         p.inventory.push(itemId)
         const item = ITEMS[itemId]
         log(s, `${p.name} gagne ${item.emoji} ${item.name} (case chance)`, 'GOOD')
-        popup(s, '🍀 Case Chance', `La roulette offre : ${item.emoji} ${item.name} !`, 'GOOD')
+        popup(s, '🍀 Case Chance', pickNarrative('LUCKY_ITEM', { name: p.name, item: `${item.emoji} ${item.name}` }), 'GOOD')
       }
       break
     }
@@ -358,7 +359,7 @@ function landOnSpace(s: GameState): void {
       p.sipsTaken += s.config.sipPlus
       setFx(s, 'SIPS', p, p, s.config.sipPlus)
       log(s, `${p.name} boit ${s.config.sipPlus} gorgées !`, 'BAD')
-      popup(s, '🍺 Case Gorgées', `Bois ${s.config.sipPlus} gorgées !`, 'BAD')
+      popup(s, '🍺 Case Gorgées', pickNarrative('SIP_PLUS', { name: p.name, amount: s.config.sipPlus }), 'BAD')
       break
     case 'SIP_MINUS':
       s.pending = { kind: 'CHOOSE_SIP_TARGET', sips: s.config.sipMinus }
@@ -383,12 +384,12 @@ function resolveEvent(s: GameState, space: BoardSpace, wasBackward: boolean): vo
       if (wasBackward || rand() < 0.5) {
         addCoins(p, -TREE_BAD_COINS)
         log(s, `${p.name} perd ${TREE_BAD_COINS} pièces (arbre maudit)`, 'BAD')
-        popup(s, '🌳 Arbre maudit', `L'arbre secoue ses branches : -${TREE_BAD_COINS} pièces !`, 'BAD')
+        popup(s, '🌳 Arbre maudit', pickNarrative('TREE_BAD_COINS', { name: p.name, amount: TREE_BAD_COINS }), 'BAD')
       } else {
         const back = randInt(TREE_BAD_BACK_MIN, TREE_BAD_BACK_MAX)
         s.movement = { remaining: back, total: back, hopTo: null, backward: true, cameFrom: null }
         log(s, `${p.name} recule de ${back} case(s) (arbre maudit)`, 'BAD')
-        popup(s, '🌳 Arbre maudit', `Le dé maudit te souffle ${back} case${back > 1 ? 's' : ''} en arrière !`, 'BAD')
+        popup(s, '🌳 Arbre maudit', pickNarrative('TREE_BAD_BACK', { name: p.name, amount: back }), 'BAD')
       }
       break
     }
@@ -400,7 +401,7 @@ function resolveEvent(s: GameState, space: BoardSpace, wasBackward: boolean): vo
       const branches = getSpace(forkId).nextSpaces.length
       s.signposts[forkId] = ((s.signposts[forkId] ?? 0) + 1) % branches
       log(s, 'Le panneau voisin pivote !', 'NEUTRAL')
-      popup(s, '🪧 Panneau', 'Le panneau pivote ! La direction du prochain embranchement vient de changer.', 'NEUTRAL')
+      popup(s, '🪧 Panneau', pickNarrative('SIGNPOST'), 'NEUTRAL')
       break
     }
     case 'PIT': {
@@ -411,7 +412,7 @@ function resolveEvent(s: GameState, space: BoardSpace, wasBackward: boolean): vo
       popup(
         s,
         '🕳️ LE TROU',
-        `Tu tombes dedans ! Il faudra un lancer total ≥ ${s.config.pitEscapeMin} pour en sortir, sinon tu restes coincé.`,
+        `${pickNarrative('PIT', { name: p.name })} (Lancer ≥ ${s.config.pitEscapeMin} pour sortir.)`,
         'BAD',
       )
       break
@@ -495,20 +496,20 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       switch (action.itemId) {
         case 'DASH_MUSHROOM':
           s.rollBonus += 3
-          popup(s, '🍄 Champignon', '+3 au prochain lancer !', 'GOOD')
+          popup(s, '🍄 Champignon', pickNarrative('ITEM_MUSHROOM', { name: p.name }), 'GOOD')
           break
         case 'GOLDEN_DASH_MUSHROOM':
           s.rollBonus += 5
-          popup(s, '✨ Champignon doré', '+5 au prochain lancer !', 'GOOD')
+          popup(s, '✨ Champignon doré', pickNarrative('ITEM_GOLDEN_MUSHROOM', { name: p.name }), 'GOOD')
           break
         case 'POISON_MUSHROOM':
           target!.poisoned = true
-          popup(s, '☠️ Champignon poison', `${target!.name} aura -2 à son prochain lancer…`, 'GOOD')
+          popup(s, '☠️ Champignon poison', pickNarrative('ITEM_POISON', { name: p.name, target: target!.name }), 'GOOD')
           break
         case 'CUSTOM_DICE_BLOCK': {
           const value = Math.min(6, Math.max(1, Math.round(action.value ?? 1)))
           s.forcedRoll = value
-          popup(s, '🎯 Dé truqué', `Ton prochain lancer fera exactement ${value} !`, 'GOOD')
+          popup(s, '🎯 Dé truqué', pickNarrative('ITEM_RIGGED_DICE', { name: p.name, value }), 'GOOD')
           break
         }
         case 'COINADO': {
@@ -517,7 +518,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           p.coins += amount
           setFx(s, 'STEAL_COINS', target!, p, amount)
           log(s, `${p.name} vole ${amount} pièces à ${target!.name} (Coinado)`, 'GOOD')
-          popup(s, '🌪️ Coinado', `La tornade arrache ${amount} pièces à ${target!.name} !`, 'GOOD')
+          popup(s, '🌪️ Coinado', pickNarrative('ITEM_COINADO', { name: p.name, target: target!.name, amount }), 'GOOD')
           break
         }
         case 'FLY_GUY_TICKET': {
@@ -526,7 +527,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           p.inventory.push(stolen)
           const stolenItem = ITEMS[stolen]
           log(s, `${p.name} vole ${stolenItem.emoji} ${stolenItem.name} à ${target!.name}`, 'GOOD')
-          popup(s, '🎫 Maskache ailé', `Il rapporte ${stolenItem.emoji} ${stolenItem.name} volé à ${target!.name} !`, 'GOOD')
+          popup(s, '🎫 Maskache ailé', pickNarrative('ITEM_FLY_GUY', { name: p.name, target: target!.name, item: `${stolenItem.emoji} ${stolenItem.name}` }), 'GOOD')
           break
         }
         case 'GOLDEN_PIPE': {
@@ -534,18 +535,18 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           p.currentSpaceId = before
           p.trapped = false
           log(s, `${p.name} surgit du tuyau doré près de l'Étoile`, 'GOOD')
-          popup(s, '🪈 Tuyau doré', "Te voilà téléporté juste avant l'Étoile !", 'GOOD')
+          popup(s, '🪈 Tuyau doré', pickNarrative('ITEM_GOLDEN_PIPE', { name: p.name }), 'GOOD')
           break
         }
         case 'HIDDEN_BLOCK_CARD': {
           if (rand() < HIDDEN_BLOCK_STAR_CHANCE) {
             p.stars += 1
             log(s, `${p.name} trouve une ÉTOILE dans le bloc caché !!`, 'GOOD')
-            popup(s, '🎁 Bloc caché', '⭐ INCROYABLE : une Étoile !', 'GOOD')
+            popup(s, '🎁 Bloc caché', pickNarrative('ITEM_HIDDEN_BLOCK_STAR', { name: p.name }), 'GOOD')
           } else {
             addCoins(p, HIDDEN_BLOCK_COINS)
             log(s, `${p.name} trouve ${HIDDEN_BLOCK_COINS} pièces dans le bloc caché`, 'GOOD')
-            popup(s, '🎁 Bloc caché', `+${HIDDEN_BLOCK_COINS} pièces !`, 'GOOD')
+            popup(s, '🎁 Bloc caché', pickNarrative('ITEM_HIDDEN_BLOCK_COINS', { name: p.name, amount: HIDDEN_BLOCK_COINS }), 'GOOD')
           }
           break
         }
@@ -592,7 +593,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           popup(
             s,
             '🕳️ Toujours coincé !',
-            `Il fallait ≥ ${s.config.pitEscapeMin} et tu as fait ${d.steps}… Tu restes dans le trou.`,
+            pickNarrative('PIT_STUCK', { name: p.name, roll: d.steps, needed: s.config.pitEscapeMin }),
             'BAD',
           )
           return s
@@ -601,7 +602,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         s.movement = { remaining: d.steps, total: d.steps, hopTo: null, backward: false, cameFrom: null }
         s.phase = 'SPACE_ACTION'
         log(s, `💪 ${p.name} s'extirpe du trou avec un ${d.steps} !`, 'GOOD')
-        popup(s, '💪 LIBÉRÉ !', `Un ${d.steps} ! Tu t'extirpes du trou et tu avances.`, 'GOOD')
+        popup(s, '💪 LIBÉRÉ !', pickNarrative('PIT_ESCAPE', { name: p.name, roll: d.steps }), 'GOOD')
         return s
       }
       s.movement = { remaining: d.steps, total: d.steps, hopTo: null, backward: false, cameFrom: null }
@@ -708,14 +709,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           p.sipsGiven += sips
           setFx(s, 'SIPS', p, target, sips)
           log(s, `${p.name} distribue ${sips} gorgées à ${target.name} !`, 'GOOD')
-          popup(s, '🍻 Distribution', `${target.name} boit ${sips} gorgées, santé !`, 'GOOD')
+          popup(s, '🍻 Distribution', pickNarrative('SIP_DISTRIBUTE', { from: p.name, to: target.name, amount: sips }), 'GOOD')
           return s
         }
         case 'TREE_GOOD': {
           if (choice.pick === 'COIN_FRUIT') {
             addCoins(p, TREE_COIN_FRUIT)
             log(s, `${p.name} croque le Fruit Pièces : +${TREE_COIN_FRUIT} pièces`, 'GOOD')
-            popup(s, '🌳 Arbre généreux', `Fruit Pièces : +${TREE_COIN_FRUIT} pièces !`, 'GOOD')
+            popup(s, '🌳 Arbre généreux', pickNarrative('TREE_GOOD_COINS', { name: p.name, amount: TREE_COIN_FRUIT }), 'GOOD')
           } else {
             log(s, `${p.name} croque le Fruit Dé et relance !`, 'GOOD')
             prepareRoll(s, 'NORMAL')
@@ -747,13 +748,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             p.coins += amount
             setFx(s, 'STEAL_COINS', target, p, amount)
             log(s, `Boo vole ${amount} pièces à ${target.name} pour ${p.name} !`, 'GOOD')
-            popup(s, '👻 Boo', `Boo rapporte ${amount} pièces volées à ${target.name} !`, 'GOOD')
+            popup(s, '👻 Boo', pickNarrative('BOO_STEAL_COINS', { name: p.name, target: target.name, amount }), 'GOOD')
           } else if (target.stars > 0) {
             target.stars -= 1
             p.stars += 1
             setFx(s, 'STEAL_STAR', target, p)
             log(s, `Boo vole une ÉTOILE à ${target.name} pour ${p.name} !!`, 'GOOD')
-            popup(s, '👻 Boo', `Boo rapporte une ÉTOILE volée à ${target.name} !`, 'GOOD')
+            popup(s, '👻 Boo', pickNarrative('BOO_STEAL_STAR', { name: p.name, target: target.name }), 'GOOD')
           } else {
             addCoins(p, s.config.booStarCost)
             popup(s, '👻 Boo', `${target.name} n'a pas d'Étoile. Boo te rembourse.`, 'NEUTRAL')
@@ -768,7 +769,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             const others = STAR_SPOTS.filter((id) => id !== s.starSpaceId)
             s.starSpaceId = pick(others)
             log(s, `⭐ ${p.name} achète une Étoile ! Toadette déménage…`, 'GOOD')
-            popup(s, '⭐ Étoile !', `${p.name} achète une Étoile pour ${s.config.starCost} pièces !`, 'GOOD')
+            popup(s, '⭐ Étoile !', pickNarrative('STAR_BUY', { name: p.name, cost: s.config.starCost }), 'GOOD')
           } else {
             continueOrLand(s)
           }
@@ -795,7 +796,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             case 'LOSE_COINS': {
               addCoins(p, -outcome.amount)
               log(s, `🔮 Kamek : ${p.name} perd ${outcome.amount} pièces`, 'BAD')
-              popup(s, '🔮 Roue de Kamek', `Le sort s'abat : -${outcome.amount} pièces !`, 'BAD')
+              popup(s, '🔮 Roue de Kamek', pickNarrative('BAD_LUCK_COINS', { name: p.name, amount: outcome.amount }), 'BAD')
               break
             }
             case 'LOSE_ITEM': {
@@ -805,7 +806,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               popup(
                 s,
                 '🔮 Roue de Kamek',
-                item ? `Kamek aspire ${item.emoji} ${item.name} dans sa manche !` : 'Kamek ne trouve rien à voler…',
+                item
+                  ? pickNarrative('BAD_LUCK_ITEM', { name: p.name, item: `${item.emoji} ${item.name}` })
+                  : 'Kamek ne trouve rien à voler…',
                 'BAD',
               )
               break

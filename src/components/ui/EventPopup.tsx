@@ -7,10 +7,11 @@
 // ============================================================
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { SIGNPOST_FORK_IDS, getSpace } from '../../game/board'
 import { ITEMS, TREE_COIN_FRUIT } from '../../game/constants'
 import { EVENT_CHARACTERS, type EventCharacterId } from '../../game/eventImages'
+import { pickNarrative } from '../../game/eventNarratives'
 import { effectiveSpaceType, getCurrentPlayer } from '../../game/reducer'
 import type { BadLuckOutcome, PendingAction, Player, PlayerId, PopupTone } from '../../game/types'
 import { useGame } from '../../game/useGameState'
@@ -141,6 +142,16 @@ export function EventPopup() {
 function PendingContent({ pending, player }: { pending: PendingAction; player: Player }) {
   const { state, resolvePending } = useGame()
   const others = state.players.filter((p) => p.id !== player.id)
+  // Texte d'ambiance tiré UNE fois par événement (sinon il changerait à chaque render)
+  const flavor = useMemo(
+    () => ({
+      tree: pickNarrative('TREE_GOOD_PROMPT', { name: player.name }),
+      boo: pickNarrative('BOO_INTRO', { name: player.name }),
+      vs: pending.kind === 'VS_WAGER' ? pickNarrative('VS', { amount: pending.amount }) : '',
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pending],
+  )
 
   switch (pending.kind) {
     case 'POPUP':
@@ -170,9 +181,7 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
     case 'TREE_GOOD_CHOICE':
       return (
         <>
-          <p className="text-cream/90 mt-1 text-lg font-bold">
-            « Approche, {player.name}… choisis ton fruit ! »
-          </p>
+          <p className="text-cream/90 mt-1 text-lg font-bold">{flavor.tree}</p>
           <div className="mt-3 flex gap-3">
             <ChoiceCard
               emoji="🪙"
@@ -194,9 +203,7 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
       const anyStarTarget = others.some((t) => t.stars > 0)
       return (
         <>
-          <p className="text-cream/90 mt-1 text-lg font-bold">
-            « Bouuuh… je peux voler pour toi, {player.name}… moyennant finance. »
-          </p>
+          <p className="text-cream/90 mt-1 text-lg font-bold">{flavor.boo}</p>
           <div className="mt-3 flex flex-wrap gap-2.5">
             <WideButton onClick={() => resolvePending({ kind: 'BOO', action: 'STEAL_COINS' })}>
               🪙 Voler des pièces — gratuit
@@ -254,10 +261,7 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
     case 'VS_WAGER':
       return (
         <>
-          <p className="text-cream/90 mt-1 text-lg font-bold">
-            La roulette fixe la mise : <span className="text-gold-300">{pending.amount} pièces chacun</span>.
-            Duel en minijeu, le pot ira aux meilleurs !
-          </p>
+          <p className="text-cream/90 mt-1 text-lg font-bold">{flavor.vs}</p>
           <div className="mt-3 flex justify-end">
             <BigButton onClick={() => resolvePending({ kind: 'VS_OK' })}>QUE LE MEILLEUR GAGNE !</BigButton>
           </div>
