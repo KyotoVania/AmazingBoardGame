@@ -104,6 +104,8 @@ function quickTurn(state: GameState): GameState {
       })
     } else if (s.pending.kind === 'BAD_LUCK_WHEEL') {
       s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'BAD_LUCK_DONE' } })
+    } else if (s.pending.kind === 'WALL_PROMPT') {
+      s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'WALL_TRY' } })
     } else if (s.pending.kind === 'VS_WAGER') {
       throw new Error('quickTurn a atterri sur une case VS, adapter le test')
     } else {
@@ -390,25 +392,34 @@ describe('le trou (événement spécial)', () => {
 describe('le mur (événement spécial)', () => {
   const wallId = WALL_SPACE_IDS[0]
 
-  it('bloque si le lancer est trop faible et s’effrite de 1', () => {
+  it('arriver au mur ouvre un jet DÉDIÉ ; échec → bloqué, le mur s’effrite', () => {
     let s = start()
     s = { ...s, starSpaceId: 'q02' }
     s = walk(rollFrom(s, PREV[wallId][0], 3))
-    // 3 < 6 : bloqué sur place, le mur passe à 5, la case s'active quand même
+    // on s'arrête DEVANT le défi : le lancer du tour ne compte pas
     expect(s.players[0].currentSpaceId).toBe(wallId)
+    expect(s.pending?.kind).toBe('WALL_PROMPT')
+    expect(s.walls[wallId]).toBe(WALL_INITIAL_STRENGTH)
+    // jet dédié forcé à 1 : échec
+    s = gameReducer(s, { type: 'DEBUG_FORCE_ROLL', value: 1 })
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'WALL_TRY' } })
     expect(s.walls[wallId]).toBe(WALL_INITIAL_STRENGTH - 1)
+    expect(s.movement?.remaining).toBe(0)
     expect(s.pending?.kind).toBe('POPUP')
     s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
     expect(s.phase).toBe('SPACE_ACTION') // atterrissage sur la case du mur
   })
 
-  it('casse si le lancer est suffisant et laisse passer', () => {
+  it('réussir le jet dédié casse le mur et laisse finir le déplacement', () => {
     let s = start()
     s = { ...s, starSpaceId: 'q02' }
-    s = gameReducer(s, { type: 'DEBUG_SET_WALL', spaceId: wallId, strength: 2 })
     s = walk(rollFrom(s, PREV[wallId][0], 3))
+    expect(s.pending?.kind).toBe('WALL_PROMPT')
+    // jet dédié forcé à 6 : le mur explose
+    s = gameReducer(s, { type: 'DEBUG_FORCE_ROLL', value: 6 })
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'WALL_TRY' } })
     expect(s.walls[wallId]).toBe(0)
-    expect(s.pending?.kind).toBe('POPUP')
+    expect(s.fx?.kind).toBe('WALL_BREAK')
     s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
     s = walk(s)
     // 3 pas au total : mur + 2 cases derrière

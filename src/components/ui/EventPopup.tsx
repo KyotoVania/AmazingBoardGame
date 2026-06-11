@@ -75,6 +75,8 @@ function speakerFor(pending: PendingAction): Speaker {
       return fromRegistry('MOLE', 'NEUTRAL')
     case 'BAD_LUCK_WHEEL':
       return fromRegistry('KAMEK', 'BAD', 'La Roue de Kamek')
+    case 'WALL_PROMPT':
+      return { portrait: '🧱', imageUrl: null, name: 'LE MUR', tone: 'NEUTRAL' }
   }
 }
 
@@ -273,6 +275,23 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
 
     case 'BAD_LUCK_WHEEL':
       return <KamekWheel options={pending.options} resultIndex={pending.resultIndex} player={player} />
+
+    case 'WALL_PROMPT':
+      return (
+        <>
+          <p className="text-cream/90 mt-1 text-lg font-bold">
+            Un mur de briques te barre la route ! Solidité actuelle :{' '}
+            <span className="text-gold-300">{pending.strength}</span>. Lance un dé — il te faut{' '}
+            <span className="text-gold-300">≥ {pending.strength}</span> pour le pulvériser, sinon tu
+            restes planté là et il s'effrite de 1.
+          </p>
+          <div className="mt-3 flex justify-end">
+            <BigButton onClick={() => resolvePending({ kind: 'WALL_TRY' })}>
+              🎲 TENTER LE MUR
+            </BigButton>
+          </div>
+        </>
+      )
   }
 }
 

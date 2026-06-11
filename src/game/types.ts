@@ -282,6 +282,7 @@ export type PendingAction =
   | { kind: 'VS_WAGER'; amount: number }
   | { kind: 'MOLE_PROMPT'; cost: number }
   | { kind: 'BAD_LUCK_WHEEL'; options: BadLuckOutcome[]; resultIndex: number }
+  | { kind: 'WALL_PROMPT'; spaceId: string; strength: number }
 
 /** Réponses possibles à une PendingAction. */
 export type PendingChoice =
@@ -294,6 +295,7 @@ export type PendingChoice =
   | { kind: 'VS_OK' }
   | { kind: 'MOLE'; pay: boolean; directions?: Record<string, number> }
   | { kind: 'BAD_LUCK_DONE' }
+  | { kind: 'WALL_TRY' }
 
 // ---------- Configuration runtime (Config Panel) ----------
 

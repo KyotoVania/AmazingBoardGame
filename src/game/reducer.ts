@@ -621,32 +621,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       m.remaining -= 1
       if (!m.backward) {
         const arrived = getSpace(p.currentSpaceId)
-        // Le mur : tentative basée sur le lancer du tour
+        // Le mur : on s'arrête devant et on RELANCE un dé dédié (1-6)
         const wallStrength = s.walls[p.currentSpaceId] ?? 0
         if (arrived.wall && wallStrength > 0) {
-          const roll = s.dice?.steps ?? 0
           s.phase = 'PASS_EVENT'
-          if (roll >= wallStrength) {
-            s.walls[p.currentSpaceId] = 0
-            setFx(s, 'WALL_BREAK', p, p, roll)
-            log(s, `💥 ${p.name} CASSE le mur (lancer ${roll} ≥ ${wallStrength}) !`, 'GOOD')
-            popup(
-              s,
-              '💥 MUR CASSÉ !',
-              `Ton lancer de ${roll} pulvérise le mur (il fallait ≥ ${wallStrength}) ! La voie est libre pour tout le monde.`,
-              'GOOD',
-            )
-          } else {
-            s.walls[p.currentSpaceId] = wallStrength - 1
-            m.remaining = 0
-            log(s, `🧱 ${p.name} bute sur le mur (${roll} < ${wallStrength}) — il s'effrite : ${wallStrength - 1}`, 'BAD')
-            popup(
-              s,
-              '🧱 BLOQUÉ !',
-              `Le mur tient (il fallait ≥ ${wallStrength}, lancer : ${roll}). Il s'effrite : prochaine tentative à ${wallStrength - 1}.`,
-              'BAD',
-            )
-          }
+          s.focusSpaceId = p.currentSpaceId
+          s.pending = { kind: 'WALL_PROMPT', spaceId: p.currentSpaceId, strength: wallStrength }
           return s
         }
         if (p.currentSpaceId === s.starSpaceId) {
@@ -787,6 +767,40 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           s.minigame = { context: 'VS', pot, category: 'FFA', title: null, groups: null, teams: null }
           s.phase = 'MINIGAME_TITLE'
           log(s, `Case VS : ${pot} pièces dans le pot !`, 'SYSTEM')
+          return s
+        }
+        case 'WALL_TRY': {
+          if (pending.kind !== 'WALL_PROMPT' || !s.movement) return state
+          const strength = pending.strength
+          // jet DÉDIÉ au mur (1-6) — le forçage debug/dé truqué est honoré
+          let roll: number
+          if (s.forcedRoll !== null) {
+            roll = s.forcedRoll
+            s.forcedRoll = null
+          } else {
+            roll = randInt(1, 6)
+          }
+          if (roll >= strength) {
+            s.walls[pending.spaceId] = 0
+            setFx(s, 'WALL_BREAK', p, p, roll)
+            log(s, `💥 ${p.name} CASSE le mur (jet ${roll} ≥ ${strength}) !`, 'GOOD')
+            popup(
+              s,
+              '💥 MUR CASSÉ !',
+              pickNarrative('WALL_BREAK', { name: p.name, roll, needed: strength }),
+              'GOOD',
+            )
+          } else {
+            s.walls[pending.spaceId] = strength - 1
+            s.movement.remaining = 0
+            log(s, `🧱 ${p.name} bute sur le mur (${roll} < ${strength}) — il s'effrite : ${strength - 1}`, 'BAD')
+            popup(
+              s,
+              '🧱 BLOQUÉ !',
+              pickNarrative('WALL_FAIL', { name: p.name, roll, needed: strength, newStrength: strength - 1 }),
+              'BAD',
+            )
+          }
           return s
         }
         case 'BAD_LUCK_DONE': {
