@@ -1,15 +1,19 @@
 // ============================================================
-// RewardsScreen.tsx — Affiche ce que chaque rang remporte :
-// dés Or/Argent/Maudit + gorgées (fin de manche) ou parts du
-// pot (case VS), puis relance la partie.
+// RewardsScreen.tsx — Affiche ce que chaque groupe du podium
+// remporte : dé bonus Or/Argent/Maudit + gorgées (fin de manche)
+// ou parts du pot (case VS), puis relance la partie.
 // ============================================================
 
 import { motion } from 'framer-motion'
-import { CHARACTERS, PODIUM_REWARDS, VS_SPLIT } from '../../game/constants'
-import type { PlayerId } from '../../game/types'
+import { CHARACTERS, DICE_BLOCKS, PODIUM_LAYOUTS, VS_SPLIT } from '../../game/constants'
+import type { MinigameCategory, PlayerId } from '../../game/types'
 import { useGame } from '../../game/useGameState'
 
-const MEDALS = ['🥇', '🥈', '🥉', '💀']
+const MEDALS: Record<MinigameCategory, string[]> = {
+  FFA: ['🥇', '🥈', '🥉', '💀'],
+  '2v2': ['🏆', '💀'],
+  '1v1': ['🏆', '💀', '👀'],
+}
 
 /** Reproduit la répartition du pot du reducer (arrondi au 1er). */
 function vsShares(pot: number): number[] {
@@ -21,12 +25,18 @@ function vsShares(pot: number): number[] {
 export function RewardsScreen() {
   const { state, continueGame } = useGame()
   const mg = state.minigame
-  if (!mg?.ranking) return null
+  if (!mg?.groups || !mg.category) return null
+  const layout = PODIUM_LAYOUTS[mg.category]
   const isVs = mg.context === 'VS'
   const shares = isVs ? vsShares(mg.pot) : []
   const isLastRound = !isVs && state.round >= state.maxRounds
 
   const byId = (id: PlayerId) => state.players.find((p) => p.id === id)!
+
+  // Une ligne par joueur, dans l'ordre des groupes du podium.
+  const rows = mg.groups.flatMap((group, slotIndex) =>
+    group.map((pid) => ({ pid, slotIndex })),
+  )
 
   return (
     <div className="from-night-950/95 to-night-900/95 absolute inset-0 z-20 flex flex-col items-center justify-center bg-gradient-to-b p-8 backdrop-blur-sm">
@@ -34,8 +44,9 @@ export function RewardsScreen() {
       <p className="text-cream/70 mt-1 text-lg font-bold">{mg.title}</p>
 
       <div className="mt-7 flex w-full max-w-xl flex-col gap-3">
-        {mg.ranking.map((pid, i) => {
+        {rows.map(({ pid, slotIndex }, i) => {
           const p = byId(pid)
+          const slot = layout[slotIndex]
           return (
             <motion.div
               key={pid}
@@ -45,17 +56,18 @@ export function RewardsScreen() {
               className="bg-night-800/90 flex items-center gap-4 rounded-2xl px-5 py-3.5"
               style={{ borderLeft: `5px solid ${p.color}` }}
             >
-              <span className="text-3xl">{MEDALS[i]}</span>
+              <span className="text-3xl">{MEDALS[mg.category!][slotIndex]}</span>
               <span className="text-xl">{CHARACTERS[p.character].emoji}</span>
               <span className="text-lg font-extrabold">{p.name}</span>
+              <span className="text-cream/50 text-sm font-bold">{slot.label}</span>
               <span className="text-gold-300 ml-auto text-right text-sm font-extrabold">
                 {isVs ? (
-                  shares[i] > 0 ? `+${shares[i]} 🪙` : 'rien du tout…'
+                  (shares[i] ?? 0) > 0 ? `+${shares[i]} 🪙` : 'rien du tout…'
                 ) : (
                   <>
-                    {PODIUM_REWARDS[i].dice ? `🎲 Dé ${PODIUM_REWARDS[i].dice === 'GOLD' ? 'Or' : PODIUM_REWARDS[i].dice === 'SILVER' ? 'Argent' : 'Maudit'}` : '🎲 Dé Normal'}
+                    {slot.dice ? `🎲 ${DICE_BLOCKS[slot.dice].label} en bonus` : '🎲 pas de dé bonus'}
                     <span className="text-cream/75 block">
-                      {PODIUM_REWARDS[i].sips > 0 ? `🍺 boit ${PODIUM_REWARDS[i].sips} gorgée${PODIUM_REWARDS[i].sips > 1 ? 's' : ''}` : '😎 ne boit pas'}
+                      {slot.sips > 0 ? `🍺 boit ${slot.sips} gorgée${slot.sips > 1 ? 's' : ''}` : '😎 ne boit pas'}
                     </span>
                   </>
                 )}

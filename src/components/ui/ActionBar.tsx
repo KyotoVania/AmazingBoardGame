@@ -23,7 +23,12 @@ export function ActionBar() {
       <AnimatePresence mode="wait">
         {state.phase === 'TURN_START' && <PreRollBar key="preroll" player={player} />}
         {state.phase === 'ROLLING' && (
-          <InfoBar key="rolling" text={`🎲 ${player.name} lance le ${DICE_BLOCKS[state.dice?.blockId ?? 'NORMAL'].label}…`} />
+          <InfoBar
+            key="rolling"
+            text={`🎲 ${player.name} lance le ${DICE_BLOCKS[state.dice?.blockId ?? 'NORMAL'].label}${
+              state.dice?.bonus ? ` + le ${DICE_BLOCKS[state.dice.bonus.blockId].label} en bonus !` : '…'
+            }`}
+          />
         )}
         {state.phase === 'MOVING' && state.movement && (
           <InfoBar
@@ -91,6 +96,13 @@ function PreRollBar({ player }: { player: Player }) {
         </button>
       </div>
 
+      {reward && (
+        <div className="bg-gold-400/15 text-gold-300 mt-3 flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold">
+          🎁 {DICE_BLOCKS[reward].label} ({DICE_BLOCKS[reward].faces[0].value}–
+          {DICE_BLOCKS[reward].faces[5].value}) — lancé <u>automatiquement en plus</u> de ton dé !
+        </div>
+      )}
+
       {player.trapped && (
         <div className="mt-3 rounded-xl bg-red-500/15 px-4 py-2 text-sm font-extrabold text-red-300">
           🕳️ {player.name} est au fond du trou ! Il faut un lancer total ≥ {PIT_ESCAPE_MIN} pour
@@ -110,14 +122,6 @@ function PreRollBar({ player }: { player: Player }) {
             active={selectedDice === player.character}
             onClick={() => setSelectedDice(player.character)}
           />
-          {reward && (
-            <DiceChoice
-              label={`🎁 ${DICE_BLOCKS[reward].label}`}
-              active={selectedDice === reward}
-              gold
-              onClick={() => setSelectedDice(reward)}
-            />
-          )}
         </div>
         <motion.button
           whileHover={{ scale: 1.05 }}
@@ -141,11 +145,6 @@ function PreRollBar({ player }: { player: Player }) {
             ) : null}
           </span>
         ))}
-        {reward && selectedDice !== reward && (
-          <span className="bg-gold-400/15 text-gold-300 rounded px-1.5 py-0.5">
-            🎁 bonus podium dispo : {DICE_BLOCKS[reward].label}
-          </span>
-        )}
         {state.rollBonus > 0 && (
           <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-emerald-300">
             +{state.rollBonus} champignon
@@ -169,23 +168,17 @@ function PreRollBar({ player }: { player: Player }) {
 function DiceChoice({
   label,
   active,
-  gold,
   onClick,
 }: {
   label: string
   active: boolean
-  gold?: boolean
   onClick: () => void
 }) {
   return (
     <button
       onClick={onClick}
       className={`flex-1 rounded-lg px-3 py-2 text-sm font-extrabold transition-colors ${
-        active
-          ? 'bg-gold-400 text-night-950'
-          : gold
-            ? 'text-gold-300 hover:bg-night-700'
-            : 'text-cream/70 hover:bg-night-700'
+        active ? 'bg-gold-400 text-night-950' : 'text-cream/70 hover:bg-night-700'
       }`}
     >
       {label}
@@ -291,13 +284,15 @@ function ItemMenu({ player, onClose }: { player: Player; onClose: () => void }) 
 function ForkBar({ player }: { player: Player }) {
   const { state, chooseFork } = useGame()
   const space = getSpace(player.currentSpaceId)
+  const cameFrom = state.movement?.cameFrom ?? null
+  const options = space.nextSpaces.filter((id) => id !== cameFrom)
   return (
     <BarShell>
       <p className="text-center text-lg font-extrabold">
-        🛤️ Embranchement libre ! Choisis ton chemin (ou clique une case dorée)
+        🛤️ Carrefour ! Choisis ta direction (ou clique une case dorée)
       </p>
       <div className="mt-3 flex justify-center gap-3">
-        {space.nextSpaces.map((id) => {
+        {options.map((id) => {
           const target = BOARD[id]
           const type = effectiveSpaceType(state, id)
           return (
@@ -309,7 +304,9 @@ function ForkBar({ player }: { player: Player }) {
               className="bg-night-800 hover:bg-night-700 rounded-xl px-5 py-3 text-left"
             >
               <span className="text-2xl">{arrowFor(target.x - space.x, target.y - space.y)}</span>
-              <span className="ml-2 text-sm font-extrabold">{SPACE_TYPE_LABELS[type]}</span>
+              <span className="ml-2 text-sm font-extrabold">
+                {space.branchLabels?.[space.nextSpaces.indexOf(id)] ?? SPACE_TYPE_LABELS[type]}
+              </span>
             </motion.button>
           )
         })}

@@ -22,6 +22,7 @@ const PHASE_LABELS: Record<GamePhase, string> = {
   MINIGAME_PLAY: 'Minijeu en cours',
   PODIUM: 'Saisie du podium',
   REWARDS: 'Récompenses',
+  ROUND_INTRO: 'Nouvelle manche',
   GAME_OVER: 'Fin de partie',
 }
 
@@ -79,10 +80,14 @@ function PlayerCard({ player, active }: { player: Player; active: boolean }) {
       )}
       <div className="flex items-center gap-2.5">
         <div
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-2xl shadow-inner"
+          className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full text-2xl shadow-inner"
           style={{ backgroundColor: player.color }}
         >
-          {char.emoji}
+          {player.avatarUrl ? (
+            <img src={player.avatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            char.emoji
+          )}
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-extrabold">{player.name}</p>

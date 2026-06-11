@@ -54,6 +54,12 @@ export const WALL_INITIAL_STRENGTH = 6 // demandé : commence à 6, -1 par éche
 export const LUCKY_COINS = [5, 10] as const
 export const BAD_LUCK_COINS = [5, 10] as const
 
+// Roue de Kamek (case poisse) : les sorts possibles [ADAPTATION]
+export const KAMEK_GIVE_COINS = 5
+export const KAMEK_SIPS = 2
+export const KAMEK_BACK_MIN = 2
+export const KAMEK_BACK_MAX = 3
+
 // Case VS (wiki SMP : mise déterminée par roulette, le gagnant
 // rafle la majorité du pot)
 export const VS_WAGERS = [5, 10, 15, 20] as const

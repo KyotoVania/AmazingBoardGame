@@ -1,14 +1,17 @@
 // ============================================================
-// EventPopup.tsx — Toutes les popups d'événements : effets de
-// cases, choix de cible des gorgées, arbres, Boo, Étoile, mise VS.
+// EventPopup.tsx — La BOÎTE DE DIALOGUE des événements, ancrée en
+// bas de l'écran façon visual novel : portrait du « personnage »
+// (arbre, Boo, Toadette, Topi Taupe…), nom, texte, et les choix.
+// La caméra reste libre de cadrer la scène au-dessus (travelling
+// géré par CameraRig via state.focusSpaceId).
 // ============================================================
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { SIGNPOST_FORK_IDS, getSpace } from '../../game/board'
-import { BOO_STAR_COST, STAR_COST, TREE_COIN_FRUIT } from '../../game/constants'
+import { BOO_STAR_COST, ITEMS, STAR_COST, TREE_COIN_FRUIT } from '../../game/constants'
 import { effectiveSpaceType, getCurrentPlayer } from '../../game/reducer'
-import type { PendingAction, Player, PlayerId, PopupTone } from '../../game/types'
+import type { BadLuckOutcome, PendingAction, Player, PlayerId, PopupTone } from '../../game/types'
 import { useGame } from '../../game/useGameState'
 import { SPACE_TYPE_LABELS, arrowFor } from './labels'
 
@@ -18,35 +21,77 @@ const TONE_RING: Record<PopupTone, string> = {
   NEUTRAL: 'ring-gold-400/50',
 }
 
+/** Portrait + nom du « personnage » qui parle, selon l'événement. */
+function speakerFor(pending: PendingAction): { portrait: string; name: string; tone: PopupTone } {
+  switch (pending.kind) {
+    case 'POPUP': {
+      const emoji = pending.title.match(/^\p{Extended_Pictographic}+/u)?.[0]
+      return {
+        portrait: emoji ?? '❕',
+        name: emoji ? pending.title.slice(emoji.length).trim() : pending.title,
+        tone: pending.tone,
+      }
+    }
+    case 'CHOOSE_SIP_TARGET':
+      return { portrait: '🍻', name: 'Distribution générale', tone: 'GOOD' }
+    case 'TREE_GOOD_CHOICE':
+      return { portrait: '🌳', name: "L'Arbre généreux", tone: 'GOOD' }
+    case 'BOO_PROMPT':
+    case 'BOO_PICK_VICTIM':
+      return { portrait: '👻', name: 'Boo', tone: 'NEUTRAL' }
+    case 'STAR_PROMPT':
+      return { portrait: '⭐', name: 'Toadette', tone: 'GOOD' }
+    case 'VS_WAGER':
+      return { portrait: '⚔️', name: 'Case VS', tone: 'NEUTRAL' }
+    case 'MOLE_PROMPT':
+      return { portrait: '🦫', name: 'Topi Taupe', tone: 'NEUTRAL' }
+    case 'BAD_LUCK_WHEEL':
+      return { portrait: '🔮', name: 'La Roue de Kamek', tone: 'BAD' }
+  }
+}
+
 export function EventPopup() {
   const { state } = useGame()
   const player = getCurrentPlayer(state)
+  const pending = state.pending
+  const speaker = pending ? speakerFor(pending) : null
+
   return (
     <AnimatePresence>
-      {state.pending && player && (
+      {pending && player && speaker && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 z-30 grid place-items-center bg-black/40 p-6"
+          className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-6"
         >
           <motion.div
-            initial={{ scale: 0.8, y: 24, opacity: 0 }}
-            animate={{ scale: 1, y: 0, opacity: 1 }}
-            exit={{ scale: 0.86, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 330, damping: 23 }}
-            className={`bg-night-900/95 w-full max-w-xl rounded-3xl p-7 text-center shadow-2xl ring-4 backdrop-blur-md ${ringFor(state.pending)}`}
+            initial={{ y: 90, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 60, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 330, damping: 26 }}
+            className={`bg-night-900/95 pointer-events-auto w-full max-w-3xl rounded-3xl p-5 shadow-2xl ring-4 backdrop-blur-md ${TONE_RING[speaker.tone]}`}
           >
-            <PendingContent pending={state.pending} player={player} />
+            <div className="flex items-start gap-4">
+              {/* Portrait du personnage */}
+              <motion.div
+                initial={{ scale: 0, rotate: -12 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 16, delay: 0.08 }}
+                className="bg-night-800 grid h-20 w-20 shrink-0 place-items-center rounded-2xl text-5xl shadow-inner"
+              >
+                {speaker.portrait}
+              </motion.div>
+              <div className="min-w-0 flex-1 text-left">
+                <p className="font-display text-gold-300 text-2xl tracking-wide">{speaker.name}</p>
+                <PendingContent pending={pending} player={player} />
+              </div>
+            </div>
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
   )
-}
-
-function ringFor(pending: PendingAction): string {
-  return pending.kind === 'POPUP' ? TONE_RING[pending.tone] : TONE_RING.NEUTRAL
 }
 
 function PendingContent({ pending, player }: { pending: PendingAction; player: Player }) {
@@ -57,17 +102,17 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
     case 'POPUP':
       return (
         <>
-          <h2 className="font-display text-4xl tracking-wide">{pending.title}</h2>
-          <p className="text-cream/85 mt-3 text-xl font-bold">{pending.text}</p>
-          <BigButton onClick={() => resolvePending({ kind: 'DISMISS' })}>OK</BigButton>
+          <p className="text-cream/90 mt-1 text-lg font-bold">{pending.text}</p>
+          <div className="mt-3 flex justify-end">
+            <BigButton onClick={() => resolvePending({ kind: 'DISMISS' })}>OK ➜</BigButton>
+          </div>
         </>
       )
 
     case 'CHOOSE_SIP_TARGET':
       return (
         <>
-          <h2 className="font-display text-4xl tracking-wide">🍻 À la tienne !</h2>
-          <p className="text-cream/85 mt-3 text-xl font-bold">
+          <p className="text-cream/90 mt-1 text-lg font-bold">
             {player.name}, distribue {pending.sips} gorgées à un adversaire :
           </p>
           <TargetPicker
@@ -81,9 +126,10 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
     case 'TREE_GOOD_CHOICE':
       return (
         <>
-          <h2 className="font-display text-4xl tracking-wide">🌳 L'arbre généreux</h2>
-          <p className="text-cream/85 mt-3 text-lg font-bold">Choisis ton fruit :</p>
-          <div className="mt-5 flex justify-center gap-4">
+          <p className="text-cream/90 mt-1 text-lg font-bold">
+            « Approche, {player.name}… choisis ton fruit ! »
+          </p>
+          <div className="mt-3 flex gap-3">
             <ChoiceCard
               emoji="🪙"
               title="Fruit Pièces"
@@ -104,11 +150,10 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
       const anyStarTarget = others.some((t) => t.stars > 0)
       return (
         <>
-          <h2 className="font-display text-4xl tracking-wide">👻 Bouuuh… un Boo !</h2>
-          <p className="text-cream/85 mt-3 text-lg font-bold">
-            « Je peux voler pour toi, {player.name}… moyennant finance. »
+          <p className="text-cream/90 mt-1 text-lg font-bold">
+            « Bouuuh… je peux voler pour toi, {player.name}… moyennant finance. »
           </p>
-          <div className="mt-5 flex flex-col items-center gap-2.5">
+          <div className="mt-3 flex flex-wrap gap-2.5">
             <WideButton onClick={() => resolvePending({ kind: 'BOO', action: 'STEAL_COINS' })}>
               🪙 Voler des pièces — gratuit
             </WideButton>
@@ -130,9 +175,8 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
       const valid = others.filter((t) => (pending.steal === 'STAR' ? t.stars > 0 : true))
       return (
         <>
-          <h2 className="font-display text-4xl tracking-wide">👻 Quelle victime ?</h2>
-          <p className="text-cream/85 mt-3 text-lg font-bold">
-            Boo va voler {pending.steal === 'STAR' ? 'une Étoile' : 'des pièces'} à…
+          <p className="text-cream/90 mt-1 text-lg font-bold">
+            « Hihihi… je vole {pending.steal === 'STAR' ? 'une Étoile' : 'des pièces'} à qui ? »
           </p>
           <TargetPicker
             targets={valid}
@@ -146,11 +190,10 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
     case 'STAR_PROMPT':
       return (
         <>
-          <h2 className="font-display text-4xl tracking-wide">⭐ Toadette t'interpelle !</h2>
-          <p className="text-cream/85 mt-3 text-xl font-bold">
-            Une Étoile pour {STAR_COST} pièces ? (tu as {player.coins} 🪙)
+          <p className="text-cream/90 mt-1 text-lg font-bold">
+            « Une Étoile pour {STAR_COST} pièces, ça te dit ? » (tu as {player.coins} 🪙)
           </p>
-          <div className="mt-5 flex justify-center gap-3">
+          <div className="mt-3 flex gap-3">
             <WideButton
               disabled={player.coins < STAR_COST}
               onClick={() => resolvePending({ kind: 'STAR', buy: true })}
@@ -167,18 +210,109 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
     case 'VS_WAGER':
       return (
         <>
-          <h2 className="font-display text-4xl tracking-wide">⚔️ CASE VS !</h2>
-          <p className="text-cream/85 mt-3 text-xl font-bold">
+          <p className="text-cream/90 mt-1 text-lg font-bold">
             La roulette fixe la mise : <span className="text-gold-300">{pending.amount} pièces chacun</span>.
             Duel en minijeu, le pot ira aux meilleurs !
           </p>
-          <BigButton onClick={() => resolvePending({ kind: 'VS_OK' })}>QUE LE MEILLEUR GAGNE !</BigButton>
+          <div className="mt-3 flex justify-end">
+            <BigButton onClick={() => resolvePending({ kind: 'VS_OK' })}>QUE LE MEILLEUR GAGNE !</BigButton>
+          </div>
         </>
       )
 
     case 'MOLE_PROMPT':
       return <MolePrompt cost={pending.cost} player={player} />
+
+    case 'BAD_LUCK_WHEEL':
+      return <KamekWheel options={pending.options} resultIndex={pending.resultIndex} player={player} />
   }
+}
+
+// ---------- La Roue de Kamek : roulette de sorts ----------
+
+function outcomeLabel(outcome: BadLuckOutcome, player: Player, others: Player[]): string {
+  switch (outcome.kind) {
+    case 'LOSE_COINS':
+      return `💸 Perds ${outcome.amount} pièces`
+    case 'LOSE_ITEM': {
+      const item = player.inventory[outcome.index]
+      return item ? `🎒 Kamek confisque ${ITEMS[item].emoji} ${ITEMS[item].name}` : '🎒 Kamek fouille ton sac'
+    }
+    case 'GIVE_COINS': {
+      const target = others.find((t) => t.id === outcome.targetId)
+      return `🪙 Donne ${outcome.amount} pièces à ${target?.name ?? '???'}`
+    }
+    case 'SIPS':
+      return `🍺 Bois ${outcome.amount} gorgées`
+    case 'BACK':
+      return `↩️ Recule de ${outcome.steps} cases`
+  }
+}
+
+function KamekWheel({
+  options,
+  resultIndex,
+  player,
+}: {
+  options: BadLuckOutcome[]
+  resultIndex: number
+  player: Player
+}) {
+  const { state, resolvePending } = useGame()
+  const others = state.players.filter((p) => p.id !== player.id)
+  const labels = options.map((o) => outcomeLabel(o, player, others))
+  const [index, setIndex] = useState(0)
+  const [done, setDone] = useState(false)
+  const timer = useRef(0)
+
+  // La roue tourne vite, décélère, et s'arrête sur le sort pré-tiré.
+  useEffect(() => {
+    const total = options.length * 3 + resultIndex
+    let steps = 0
+    let delay = 90
+    const tick = () => {
+      steps += 1
+      setIndex(steps % options.length)
+      if (steps >= total) {
+        setDone(true)
+        return
+      }
+      if (total - steps < 6) delay += 70
+      timer.current = window.setTimeout(tick, delay)
+    }
+    timer.current = window.setTimeout(tick, delay)
+    return () => window.clearTimeout(timer.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <>
+      <p className="text-cream/90 mt-1 text-lg font-bold">
+        « Héhéhé… voyons quel malheur t'attend, {player.name} ! »
+      </p>
+      <div className="bg-night-800/90 mt-3 w-full max-w-md overflow-hidden rounded-2xl py-2 shadow-inner ring-1 ring-purple-400/30">
+        <p className="text-cream/25 truncate px-4 text-sm font-bold">
+          {labels[(index - 1 + labels.length) % labels.length]}
+        </p>
+        <motion.p
+          key={index}
+          initial={{ y: 12, opacity: 0.4 }}
+          animate={{ y: 0, opacity: 1, scale: done ? 1.06 : 1 }}
+          className={`truncate px-4 py-1 text-xl font-extrabold ${done ? 'text-red-300' : ''}`}
+        >
+          {labels[index]}
+        </motion.p>
+        <p className="text-cream/25 truncate px-4 text-sm font-bold">
+          {labels[(index + 1) % labels.length]}
+        </p>
+      </div>
+      {done && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-3 flex justify-end">
+          <BigButton onClick={() => resolvePending({ kind: 'BAD_LUCK_DONE' })}>😱 SUBIR SON SORT</BigButton>
+        </motion.div>
+      )}
+    </>
+  )
 }
 
 // ---------- Topi Taupe : réorienter les panneaux contre des pièces ----------
@@ -196,33 +330,33 @@ function MolePrompt({ cost, player }: { cost: number; player: Player }) {
 
   return (
     <>
-      <h2 className="font-display text-4xl tracking-wide">🦫 Topi Taupe</h2>
-      <p className="text-cream/85 mt-3 text-lg font-bold">
+      <p className="text-cream/90 mt-1 text-lg font-bold">
         « Pour <span className="text-gold-300">{cost} pièces</span>, j'oriente les panneaux comme tu
         veux ! » (tu as {player.coins} 🪙)
       </p>
-      <div className="mt-4 flex flex-col items-center gap-2">
+      <div className="mt-3 flex flex-col gap-2">
         {SIGNPOST_FORK_IDS.map((forkId, i) => {
           const fork = getSpace(forkId)
           const dir = (directions[forkId] ?? 0) % fork.nextSpaces.length
-          const target = getSpace(fork.nextSpaces[dir])
+          const targetId = fork.nextSpaces[dir]
+          const target = getSpace(targetId)
+          const label =
+            fork.branchLabels?.[dir] ?? SPACE_TYPE_LABELS[effectiveSpaceType(state, targetId)]
           return (
             <button
               key={forkId}
               onClick={() => cycle(forkId)}
-              className="bg-night-800 hover:bg-night-700 flex w-80 items-center gap-3 rounded-xl px-4 py-2.5"
+              className="bg-night-800 hover:bg-night-700 flex w-full max-w-md items-center gap-3 rounded-xl px-4 py-2.5"
             >
               <span className="text-cream/60 text-sm font-extrabold">Panneau {i + 1}</span>
               <span className="ml-auto text-xl">{arrowFor(target.x - fork.x, target.y - fork.y)}</span>
-              <span className="text-sm font-extrabold">
-                {SPACE_TYPE_LABELS[effectiveSpaceType(state, target.id)]}
-              </span>
+              <span className="text-sm font-extrabold">{label}</span>
               <span className="text-cream/40 text-xs font-bold">↻</span>
             </button>
           )
         })}
       </div>
-      <div className="mt-5 flex justify-center gap-3">
+      <div className="mt-3 flex gap-3">
         <WideButton
           disabled={player.coins < cost}
           onClick={() => resolvePending({ kind: 'MOLE', pay: true, directions })}
@@ -245,7 +379,7 @@ function BigButton({ children, onClick }: { children: React.ReactNode; onClick: 
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
       onClick={onClick}
-      className="font-display from-gold-400 to-gold-500 text-night-950 mt-6 rounded-xl bg-gradient-to-b px-8 py-3 text-2xl tracking-wider shadow-[0_5px_0_rgba(0,0,0,0.35)]"
+      className="font-display from-gold-400 to-gold-500 text-night-950 rounded-xl bg-gradient-to-b px-7 py-2.5 text-xl tracking-wider shadow-[0_4px_0_rgba(0,0,0,0.35)]"
     >
       {children}
     </motion.button>
@@ -267,7 +401,7 @@ function WideButton({
     <button
       disabled={disabled}
       onClick={onClick}
-      className={`w-80 rounded-xl px-4 py-3 text-lg font-extrabold transition-colors disabled:opacity-35 ${
+      className={`rounded-xl px-4 py-2.5 text-base font-extrabold transition-colors disabled:opacity-35 ${
         ghost
           ? 'bg-night-800 text-cream/75 hover:bg-night-700'
           : 'bg-gold-400/15 text-gold-300 hover:bg-gold-400/25'
@@ -291,14 +425,16 @@ function ChoiceCard({
 }) {
   return (
     <motion.button
-      whileHover={{ scale: 1.06, rotate: -1 }}
+      whileHover={{ scale: 1.05, rotate: -1 }}
       whileTap={{ scale: 0.95 }}
       onClick={onClick}
-      className="bg-night-800 hover:bg-night-700 w-52 rounded-2xl p-5"
+      className="bg-night-800 hover:bg-night-700 flex items-center gap-3 rounded-2xl px-4 py-3"
     >
-      <span className="block text-5xl">{emoji}</span>
-      <span className="font-display mt-2 block text-xl">{title}</span>
-      <span className="text-cream/60 mt-1 block text-sm font-bold">{subtitle}</span>
+      <span className="text-4xl">{emoji}</span>
+      <span className="text-left">
+        <span className="font-display block text-lg">{title}</span>
+        <span className="text-cream/60 block text-xs font-bold">{subtitle}</span>
+      </span>
     </motion.button>
   )
 }
@@ -313,17 +449,17 @@ function TargetPicker({
   onPick: (id: PlayerId) => void
 }) {
   return (
-    <div className="mt-5 flex flex-wrap justify-center gap-3">
+    <div className="mt-3 flex flex-wrap gap-2.5">
       {targets.map((t) => (
         <motion.button
           key={t.id}
           whileHover={{ scale: 1.06 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => onPick(t.id)}
-          className="bg-night-800 hover:bg-night-700 flex items-center gap-2.5 rounded-xl px-4 py-3"
+          className="bg-night-800 hover:bg-night-700 flex items-center gap-2.5 rounded-xl px-4 py-2.5"
         >
           <span className="h-4 w-4 rounded-full" style={{ backgroundColor: t.color }} />
-          <span className="text-lg font-extrabold">{t.name}</span>
+          <span className="text-base font-extrabold">{t.name}</span>
           <span className="text-cream/60 text-sm font-bold">{stat(t)}</span>
         </motion.button>
       ))}

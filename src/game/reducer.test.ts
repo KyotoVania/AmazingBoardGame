@@ -19,7 +19,7 @@ import {
 } from './constants'
 import { createInitialState, effectiveSpaceType, gameReducer } from './reducer'
 import { setSeed } from './rng'
-import type { BoardSpace, GameAction, GameState, MinigameState, PlayerId } from './types'
+import type { BoardSpace, GameAction, GameState, MinigameState } from './types'
 
 function reduce(state: GameState, ...actions: GameAction[]): GameState {
   return actions.reduce((s, a) => gameReducer(s, a), state)
@@ -102,6 +102,8 @@ function quickTurn(state: GameState): GameState {
         type: 'RESOLVE_PENDING',
         choice: { kind: 'TREE_GOOD', pick: 'COIN_FRUIT' },
       })
+    } else if (s.pending.kind === 'BAD_LUCK_WHEEL') {
+      s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'BAD_LUCK_DONE' } })
     } else if (s.pending.kind === 'VS_WAGER') {
       throw new Error('quickTurn a atterri sur une case VS, adapter le test')
     } else {
@@ -124,6 +126,7 @@ function podiumState(base: GameState, minigame: Partial<MinigameState>): GameSta
       category: 'FFA',
       title: 'Test',
       groups: null,
+      teams: null,
       ...minigame,
     },
   }
@@ -348,8 +351,10 @@ describe('le trou (événement spécial)', () => {
   it('y atterrir piège le joueur', () => {
     let s = start()
     s = { ...s, starSpaceId: 'q02' }
-    const { from } = approachTo((sp) => sp.event === 'PIT')
-    s = walk(rollFrom(s, from, 1))
+    // le connecteur ouest est bidirectionnel : on approche via un
+    // voisin du trou en dictant le chemin au carrefour
+    const pit = Object.values(BOARD).find((sp) => sp.event === 'PIT')!
+    s = walk(rollFrom(s, PREV[pit.id][0], 1), [pit.id])
     expect(s.players[0].trapped).toBe(true)
   })
 
@@ -649,8 +654,11 @@ describe('fin de manche : minijeu, podium par catégorie, récompenses', () => {
     expect(p4.sipsTaken).toBe(3)
 
     s = gameReducer(s, { type: 'CONTINUE' })
-    expect(s.phase).toBe('TURN_START')
+    // le récap de manche (panneaux re-tirés) s'affiche d'abord
+    expect(s.phase).toBe('ROUND_INTRO')
     expect(s.round).toBe(2)
+    s = gameReducer(s, { type: 'BEGIN_ROUND' })
+    expect(s.phase).toBe('TURN_START')
     expect(s.currentPlayerIndex).toBe(0)
   })
 
@@ -688,28 +696,36 @@ describe('fin de manche : minijeu, podium par catégorie, récompenses', () => {
     expect(p3.sipsTaken).toBe(0)
   })
 
-  it('le dé de récompense est un BONUS optionnel, consommé seulement à l’usage', () => {
+  it('le dé de récompense est lancé AUTOMATIQUEMENT en plus, puis consommé', () => {
     let s = start()
     s = podiumState(s, { category: 'FFA' })
     s = reduce(
       s,
       { type: 'SET_PODIUM', groups: [['P1'], ['P2'], ['P3'], ['P4']] },
       { type: 'CONTINUE' },
+      { type: 'BEGIN_ROUND' },
     )
     expect(s.players[0].rewardDice).toBe('GOLD')
-    // P1 peut toujours lancer le dé normal : le bonus est conservé
-    const normalRoll = gameReducer(s, { type: 'ROLL_DICE', blockId: 'NORMAL' })
-    expect(normalRoll.dice?.blockId).toBe('NORMAL')
-    expect(normalRoll.players[0].rewardDice).toBe('GOLD')
-    // ou choisir le dé Or : consommé, et roule bien 4-10
-    const goldRoll = gameReducer(s, { type: 'ROLL_DICE', blockId: 'GOLD' })
-    expect(goldRoll.dice?.blockId).toBe('GOLD')
-    expect(goldRoll.dice?.steps).toBeGreaterThanOrEqual(4)
-    expect(goldRoll.dice?.steps).toBeLessThanOrEqual(10)
-    expect(goldRoll.players[0].rewardDice).toBeNull()
-    // un joueur sans bonus ne peut pas lancer le dé Or
-    const cheat = gameReducer(goldRoll, { type: 'ROLL_DICE', blockId: 'GOLD' })
-    expect(cheat).toBe(goldRoll)
+    // le dé Or n'est PAS une option de lancer : il part automatiquement en plus
+    const cheat = gameReducer(s, { type: 'ROLL_DICE', blockId: 'GOLD' })
+    expect(cheat).toBe(s)
+    // lancer normal : le bonus s'ajoute (1-6 + 4-10) et est consommé
+    const roll = gameReducer(s, { type: 'ROLL_DICE', blockId: 'NORMAL' })
+    expect(roll.dice?.blockId).toBe('NORMAL')
+    expect(roll.dice?.bonus?.blockId).toBe('GOLD')
+    expect(roll.dice?.steps).toBe((roll.dice?.faceValue ?? 0) + (roll.dice?.bonus?.faceValue ?? 0))
+    expect(roll.dice?.bonus?.faceValue).toBeGreaterThanOrEqual(4)
+    expect(roll.dice?.bonus?.faceValue).toBeLessThanOrEqual(10)
+    expect(roll.players[0].rewardDice).toBeNull()
+    // lancer FORCÉ (debug / dé truqué) : total prévisible, le bonus est conservé
+    const forced = reduce(
+      s,
+      { type: 'DEBUG_FORCE_ROLL', value: 3 },
+      { type: 'ROLL_DICE', blockId: 'NORMAL' },
+    )
+    expect(forced.dice?.steps).toBe(3)
+    expect(forced.dice?.bonus).toBeNull()
+    expect(forced.players[0].rewardDice).toBe('GOLD')
   })
 
   it('la partie se termine après la dernière manche (étoiles puis pièces)', () => {
@@ -724,6 +740,100 @@ describe('fin de manche : minijeu, podium par catégorie, récompenses', () => {
     )
     expect(s.phase).toBe('GAME_OVER')
     expect(s.winners).toEqual(['P3'])
+  })
+})
+
+describe('la Roue de Kamek (case poisse)', () => {
+  it('atterrir sur la case poisse lance la roue, et le sort pré-tiré est appliqué', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    const { from } = approachTo((sp) => sp.type === 'BAD_LUCK')
+    s = walk(rollFrom(s, from, 1))
+    expect(s.pending?.kind).toBe('BAD_LUCK_WHEEL')
+    const pending = s.pending
+    if (pending?.kind !== 'BAD_LUCK_WHEEL') throw new Error('roue attendue')
+    const outcome = pending.options[pending.resultIndex]
+    const before = s.players[0]
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'BAD_LUCK_DONE' } })
+    const after = s.players[0]
+    switch (outcome.kind) {
+      case 'LOSE_COINS':
+        expect(after.coins).toBe(Math.max(0, before.coins - outcome.amount))
+        break
+      case 'LOSE_ITEM':
+        expect(after.inventory.length).toBe(Math.max(0, before.inventory.length - 1))
+        break
+      case 'GIVE_COINS': {
+        const given = Math.min(outcome.amount, before.coins)
+        expect(after.coins).toBe(before.coins - given)
+        const target = s.players.find((p) => p.id === outcome.targetId)!
+        expect(target.coins).toBe(START_COINS + given)
+        expect(s.fx?.kind).toBe('STEAL_COINS')
+        break
+      }
+      case 'SIPS':
+        expect(after.sipsTaken).toBe(before.sipsTaken + outcome.amount)
+        break
+      case 'BACK':
+        expect(s.movement?.backward).toBe(true)
+        expect(s.movement?.remaining).toBe(outcome.steps)
+        break
+    }
+  })
+})
+
+describe('carrefours bidirectionnels (jonctions à choix libre)', () => {
+  it('arriver à une jonction par la route principale offre un choix', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    // m06 → m07 : la bande centrale croise le connecteur centre
+    s = walk(rollFrom(s, 'm06', 2))
+    // le pion s'arrête à m07 et doit choisir : continuer (m08) ou monter (c15)
+    expect(s.phase).toBe('FORK_CHOICE')
+    expect(s.players[0].currentSpaceId).toBe('m07')
+    s = gameReducer(s, { type: 'CHOOSE_FORK', nextSpaceId: 'c15' })
+    s = walk(s)
+    expect(s.players[0].currentSpaceId).toBe('c15')
+  })
+
+  it('pas de demi-tour : sur un tronçon bidirectionnel on continue tout droit', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    // en descendant le connecteur (c14 → c15 → m07), aucun choix parasite :
+    // le demi-tour est exclu à chaque pas
+    s = walk(rollFrom(s, 'c14', 2))
+    expect(s.phase).toBe('SPACE_ACTION')
+    expect(s.players[0].currentSpaceId).toBe('m07')
+  })
+
+  it("l'extérieur est peut bifurquer dans la bande centrale (o40 → o41 → m14)", () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    s = walk(rollFrom(s, 'o40', 2), ['m14'])
+    expect(s.players[0].currentSpaceId).toBe('m14')
+  })
+})
+
+describe('équipes tirées automatiquement (1v1 / 2v2)', () => {
+  it('la roulette de catégorie tire les participants sans saisie manuelle', () => {
+    for (let attempt = 0; attempt < 30; attempt++) {
+      setSeed(1000 + attempt)
+      let s = start()
+      s = gameReducer(s, { type: 'DEBUG_TRIGGER_MINIGAME' })
+      s = gameReducer(s, { type: 'SPIN_CATEGORY' })
+      const mg = s.minigame!
+      if (mg.category === 'FFA') {
+        expect(mg.teams).toBeNull()
+      } else {
+        const teams = mg.teams!
+        expect(teams).toHaveLength(2)
+        const flat = teams.flat()
+        const size = mg.category === '1v1' ? 1 : 2
+        expect(teams[0]).toHaveLength(size)
+        expect(teams[1]).toHaveLength(size)
+        expect(new Set(flat).size).toBe(flat.length)
+      }
+    }
   })
 })
 

@@ -4,7 +4,7 @@
 // ============================================================
 
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   CHARACTERS,
   CHARACTER_IDS,
@@ -94,8 +94,34 @@ interface CardProps {
   onPatch: (p: Partial<LobbyPlayerConfig>) => void
 }
 
+/** Recadre l'image en carré 192px et la convertit en dataURL compacte. */
+function fileToAvatar(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const SIZE = 192
+      const canvas = document.createElement('canvas')
+      canvas.width = SIZE
+      canvas.height = SIZE
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return reject(new Error('canvas indisponible'))
+      const side = Math.min(img.width, img.height)
+      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, SIZE, SIZE)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL('image/jpeg', 0.85))
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('image illisible'))
+    }
+    img.src = url
+  })
+}
+
 function PlayerConfigCard({ index, config, onPatch }: CardProps) {
   const dice = DICE_BLOCKS[config.character]
+  const fileRef = useRef<HTMLInputElement>(null)
   return (
     <motion.section
       initial={{ opacity: 0, y: 18 }}
@@ -105,11 +131,43 @@ function PlayerConfigCard({ index, config, onPatch }: CardProps) {
       style={{ borderTop: `5px solid ${config.color}` }}
     >
       <div className="flex items-center gap-3">
-        <div
-          className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-2xl"
-          style={{ backgroundColor: config.color }}
-        >
-          {CHARACTERS[config.character].emoji}
+        {/* Avatar : clique pour importer une image (remplace l'emoji sur le pion) */}
+        <div className="relative shrink-0">
+          <button
+            title="Importer une image pour le pion (optionnel)"
+            onClick={() => fileRef.current?.click()}
+            className="grid h-12 w-12 place-items-center overflow-hidden rounded-full text-2xl transition-transform hover:scale-105"
+            style={{ backgroundColor: config.color }}
+          >
+            {config.avatarUrl ? (
+              <img src={config.avatarUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              CHARACTERS[config.character].emoji
+            )}
+          </button>
+          <span className="bg-night-800 text-cream/80 pointer-events-none absolute -right-1 -bottom-1 grid h-5 w-5 place-items-center rounded-full text-[10px]">
+            📷
+          </span>
+          {config.avatarUrl && (
+            <button
+              title="Retirer l'image"
+              onClick={() => onPatch({ avatarUrl: null })}
+              className="absolute -top-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-red-500/90 text-[10px] font-extrabold text-white"
+            >
+              ✕
+            </button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) void fileToAvatar(file).then((avatarUrl) => onPatch({ avatarUrl }))
+              e.target.value = ''
+            }}
+          />
         </div>
         <input
           value={config.name}

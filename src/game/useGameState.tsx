@@ -33,6 +33,7 @@ export interface GameApi {
   goPodium: () => void
   setPodium: (groups: PlayerId[][]) => void
   continueGame: () => void
+  beginRound: () => void
   restart: () => void
   debug: {
     setMode: (mode: GameMode) => void
@@ -71,6 +72,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       goPodium: () => dispatch({ type: 'GO_PODIUM' }),
       setPodium: (groups) => dispatch({ type: 'SET_PODIUM', groups }),
       continueGame: () => dispatch({ type: 'CONTINUE' }),
+      beginRound: () => dispatch({ type: 'BEGIN_ROUND' }),
       restart: () => dispatch({ type: 'RESTART' }),
       debug: {
         setMode: (mode) => dispatch({ type: 'DEBUG_SET_MODE', mode }),

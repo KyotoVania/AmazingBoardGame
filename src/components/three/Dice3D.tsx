@@ -1,12 +1,14 @@
 // ============================================================
-// Dice3D.tsx — Le dé 3D : un vrai cube qui tournoie dans les
-// airs et retombe sur la face déjà tirée par le moteur.
+// Dice3D.tsx — Les dés 3D : le dé principal tournoie et retombe
+// sur la face déjà tirée par le moteur. Si un dé BONUS du podium
+// est en jeu, un second cube (doré/argenté/maudit) est lancé à
+// côté, automatiquement.
 // ============================================================
 
 import { animated, easings, useSpring } from '@react-spring/three'
 import { useEffect, useRef } from 'react'
 import { DICE_BLOCKS } from '../../game/constants'
-import type { DiceRollState } from '../../game/types'
+import type { DiceBlockId, DiceRollState } from '../../game/types'
 import { diceFaceTexture } from './textures'
 
 /**
@@ -29,8 +31,43 @@ interface Props {
 }
 
 export function Dice3D({ dice, position, onLanded }: Props) {
-  const block = DICE_BLOCKS[dice.blockId]
-  const final = FACE_UP[dice.faceIndex]
+  return (
+    <group position={position}>
+      <SpinningDie
+        blockId={dice.blockId}
+        faceIndex={dice.faceIndex}
+        offset={dice.bonus ? [-0.85, 0, 0] : [0, 0, 0]}
+        size={1.15}
+        onLanded={onLanded}
+      />
+      {dice.bonus && (
+        <SpinningDie
+          blockId={dice.bonus.blockId}
+          faceIndex={dice.bonus.faceIndex}
+          offset={[0.95, 0, 0.35]}
+          size={0.92}
+          delayMs={220}
+        />
+      )}
+      <pointLight position={[0, 3.4, 1]} intensity={5} distance={8} color="#fff6da" />
+    </group>
+  )
+}
+
+interface DieProps {
+  blockId: DiceBlockId
+  faceIndex: number
+  offset: [number, number, number]
+  size: number
+  /** Léger décalage de départ pour le dé bonus (effet "double lancer"). */
+  delayMs?: number
+  /** Seul le dé principal pilote la suite du tour. */
+  onLanded?: () => void
+}
+
+function SpinningDie({ blockId, faceIndex, offset, size, delayMs = 0, onLanded }: DieProps) {
+  const block = DICE_BLOCKS[blockId]
+  const final = FACE_UP[faceIndex]
   const timerRef = useRef(0)
 
   const spring = useSpring({
@@ -43,35 +80,35 @@ export function Dice3D({ dice, position, onLanded }: Props) {
       drop: 0,
       s: 1,
     },
+    delay: delayMs,
     config: { duration: 1500, easing: easings.easeOutCubic },
     onRest: () => {
-      timerRef.current = window.setTimeout(onLanded, 700)
+      if (onLanded) timerRef.current = window.setTimeout(onLanded, 900)
     },
   })
 
   useEffect(() => () => window.clearTimeout(timerRef.current), [])
 
   return (
-    <group position={position}>
-      <animated.mesh
-        castShadow
-        position-y={spring.drop.to((v) => 1.9 + v)}
-        rotation-x={spring.rx}
-        rotation-y={spring.ry}
-        rotation-z={spring.rz}
-        scale={spring.s}
-      >
-        <boxGeometry args={[1.15, 1.15, 1.15]} />
-        {block.faces.map((face, i) => (
-          <meshStandardMaterial
-            key={i}
-            attach={`material-${i}`}
-            map={diceFaceTexture(face.value, face.coins, block.color)}
-            roughness={0.35}
-          />
-        ))}
-      </animated.mesh>
-      <pointLight position={[0, 3.4, 1]} intensity={5} distance={8} color="#fff6da" />
-    </group>
+    <animated.mesh
+      castShadow
+      position-x={offset[0]}
+      position-z={offset[2]}
+      position-y={spring.drop.to((v) => 1.9 + v)}
+      rotation-x={spring.rx}
+      rotation-y={spring.ry}
+      rotation-z={spring.rz}
+      scale={spring.s.to((v) => v * size)}
+    >
+      <boxGeometry args={[1, 1, 1]} />
+      {block.faces.map((face, i) => (
+        <meshStandardMaterial
+          key={i}
+          attach={`material-${i}`}
+          map={diceFaceTexture(face.value, face.coins, block.color)}
+          roughness={0.35}
+        />
+      ))}
+    </animated.mesh>
   )
 }

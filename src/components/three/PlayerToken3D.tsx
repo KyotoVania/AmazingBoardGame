@@ -5,13 +5,13 @@
 // ============================================================
 
 import { animated, easings, useSpring } from '@react-spring/three'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { spaceWorldPos } from '../../game/board'
 import { CHARACTERS } from '../../game/constants'
 import type { Player } from '../../game/types'
-import { spriteTexture } from './textures'
+import { avatarTextureCache, circularImageTexture, spriteTexture } from './textures'
 
 /** Décalage par joueur pour éviter l'empilement sur une même case. */
 const OFFSETS: [number, number][] = [
@@ -81,23 +81,67 @@ export function PlayerToken3D({ player, index, isCurrent, hopTo, onHopDone }: Pr
   })
 
   const charTex = spriteTexture(CHARACTERS[player.character].emoji)
+  const avatarTex = useAvatarTexture(player.avatarUrl)
+  const headTex = avatarTex ?? charTex
 
   return (
     <animated.group position-x={x} position-y={y} position-z={z}>
-      <mesh castShadow position={[0, 0.3, 0]}>
-        <coneGeometry args={[0.27, 0.62, 24]} />
-        <meshStandardMaterial color={player.color} roughness={0.35} />
+      {/* socle */}
+      <mesh castShadow receiveShadow position={[0, 0.05, 0]}>
+        <cylinderGeometry args={[0.26, 0.3, 0.1, 24]} />
+        <meshStandardMaterial color={player.color} roughness={0.5} metalness={0.1} />
       </mesh>
-      <mesh castShadow position={[0, 0.7, 0]}>
-        <sphereGeometry args={[0.17, 24, 16]} />
-        <meshStandardMaterial color={player.color} roughness={0.3} />
+      {/* corps galbé (profil meeple au tour) */}
+      <mesh castShadow position={[0, 0.38, 0]}>
+        <coneGeometry args={[0.24, 0.6, 24]} />
+        <meshStandardMaterial color={player.color} roughness={0.22} metalness={0.12} />
       </mesh>
-      <sprite position={[0, 1.22, 0]} scale={[0.5, 0.5, 0.5]}>
-        <spriteMaterial map={charTex} transparent depthWrite={false} />
+      {/* collerette */}
+      <mesh castShadow position={[0, 0.62, 0]}>
+        <torusGeometry args={[0.12, 0.045, 12, 24]} />
+        <meshStandardMaterial color={player.color} roughness={0.25} metalness={0.15} />
+      </mesh>
+      {/* tête vernie */}
+      <mesh castShadow position={[0, 0.78, 0]}>
+        <sphereGeometry args={[0.17, 28, 20]} />
+        <meshStandardMaterial color={player.color} roughness={0.18} metalness={0.12} />
+      </mesh>
+      <sprite position={[0, 1.26, 0]} scale={avatarTex ? [0.66, 0.66, 0.66] : [0.5, 0.5, 0.5]}>
+        <spriteMaterial map={headTex} transparent depthWrite={false} />
       </sprite>
       {isCurrent && <CurrentRing color={player.color} />}
     </animated.group>
   )
+}
+
+/** Charge (et met en cache) la texture ronde d'un avatar custom. */
+function useAvatarTexture(url: string | null): THREE.Texture | null {
+  const [tex, setTex] = useState<THREE.Texture | null>(() =>
+    url ? (avatarTextureCache.get(url) ?? null) : null,
+  )
+  useEffect(() => {
+    if (!url) {
+      setTex(null)
+      return
+    }
+    const cached = avatarTextureCache.get(url)
+    if (cached) {
+      setTex(cached)
+      return
+    }
+    let alive = true
+    const img = new Image()
+    img.onload = () => {
+      const t = circularImageTexture(img)
+      avatarTextureCache.set(url, t)
+      if (alive) setTex(t)
+    }
+    img.src = url
+    return () => {
+      alive = false
+    }
+  }, [url])
+  return tex
 }
 
 function CurrentRing({ color }: { color: string }) {

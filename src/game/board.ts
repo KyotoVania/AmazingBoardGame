@@ -20,30 +20,30 @@ const SEEDS: SpaceSeed[] = [
   { id: 'o01', type: 'START', x: 8.0, y: 6.3, next: ['o02'] },
   { id: 'o02', type: 'BLUE', x: 6.9, y: 6.5, next: ['o03'] },
   // Fork LIBRE : mini-boucle du départ (raccourci vers le spot étoile sud-est)
-  { id: 'o03', type: 'BLUE', x: 5.8, y: 6.6, next: ['o04', 'q01'] },
+  { id: 'o03', type: 'BLUE', x: 5.8, y: 6.6, next: ['o04', 'q01'], branchLabels: ['Grand tour du plateau', 'Mini-boucle (spot étoile)'] },
   { id: 'o04', type: 'BLUE', x: 4.7, y: 6.6, next: ['o05'] },
   { id: 'o05', type: 'ITEM', x: 3.6, y: 6.5, next: ['o06'] },
   { id: 'o06', type: 'SIP_PLUS', x: 2.5, y: 6.4, next: ['o07'] },
   { id: 'o07', type: 'BLUE', x: 1.4, y: 6.4, next: ['o08'] },
   { id: 'o08', type: 'EVENT', event: 'SIGNPOST', x: 0.3, y: 6.4, next: ['o09'] },
   // Fork à PANNEAU n°1 : continuer à l'ouest ou monter au centre
-  { id: 'o09', type: 'BLUE', x: -0.8, y: 6.3, next: ['o10', 'c01'] },
+  { id: 'o09', type: 'BLUE', x: -0.8, y: 6.3, next: ['o10', 'c01'], branchLabels: ['Route de l’ouest (arbre généreux)', 'Vers le centre (LE TROU)'] },
   { id: 'o10', type: 'RED', x: -1.9, y: 6.2, next: ['o11'] },
   { id: 'o11', type: 'BLUE', x: -3.0, y: 6.0, next: ['o12'] },
   { id: 'o12', type: 'BLUE', x: -4.1, y: 5.6, next: ['o13'], starSpot: true },
-  { id: 'o13', type: 'BLUE', x: -5.1, y: 5.0, next: ['o14'] },
+  { id: 'o13', type: 'EVENT', event: 'TREE_GOOD', x: -5.1, y: 5.0, next: ['o14'] },
   { id: 'o14', type: 'EVENT', event: 'TREE_GOOD', x: -5.9, y: 4.2, next: ['o15'] },
-  { id: 'o15', type: 'SIP_MINUS', x: -6.5, y: 3.3, next: ['o16'] },
-  { id: 'o16', type: 'BLUE', x: -6.9, y: 2.3, next: ['o17'] },
+  { id: 'o15', type: 'EVENT', event: 'TREE_GOOD', x: -6.5, y: 3.3, next: ['o16'] },
+  { id: 'o16', type: 'SIP_MINUS', x: -6.9, y: 2.3, next: ['o17'] },
   { id: 'o17', type: 'RED', x: -7.2, y: 1.3, next: ['o18'] },
   { id: 'o18', type: 'EVENT', event: 'SIGNPOST', x: -7.4, y: 0.2, next: ['o19'] },
   // Fork à PANNEAU n°2 : continuer au nord ou bifurquer dans la bande centrale
-  { id: 'o19', type: 'BLUE', x: -7.4, y: -0.9, next: ['o20', 'm01'] },
+  { id: 'o19', type: 'BLUE', x: -7.4, y: -0.9, next: ['o20', 'm01'], branchLabels: ['Route du nord (arbre maudit)', 'Bande centrale'] },
   { id: 'o20', type: 'ITEM', x: -7.2, y: -2.0, next: ['o21'] },
-  { id: 'o21', type: 'BLUE', x: -7.0, y: -3.0, next: ['o22'] },
-  { id: 'o22', type: 'LUCKY', x: -6.6, y: -4.0, next: ['o23'] },
+  { id: 'o21', type: 'LUCKY', x: -7.0, y: -3.0, next: ['o22'] },
+  { id: 'o22', type: 'EVENT', event: 'TREE_BAD', x: -6.6, y: -4.0, next: ['o23'] },
   { id: 'o23', type: 'EVENT', event: 'TREE_BAD', x: -6.0, y: -5.0, next: ['o24'] },
-  { id: 'o24', type: 'BLUE', x: -5.0, y: -5.7, next: ['o25'] },
+  { id: 'o24', type: 'EVENT', event: 'TREE_BAD', x: -5.0, y: -5.7, next: ['o25'] },
   // Topi Taupe (doc : en haut du plateau, réoriente les panneaux contre des pièces)
   { id: 'o25', type: 'BLUE', x: -3.9, y: -6.1, next: ['o26'], hasMole: true },
   { id: 'o26', type: 'RED', x: -2.8, y: -6.3, next: ['o27'] },
@@ -53,7 +53,7 @@ const SEEDS: SpaceSeed[] = [
   { id: 'o30', type: 'BLUE', x: 1.6, y: -6.2, next: ['o31'], hasBoo: true },
   { id: 'o31', type: 'EVENT', event: 'SIGNPOST', x: 2.7, y: -6.1, next: ['o32'] },
   // Fork à PANNEAU n°3 : continuer à l'est ou plonger vers la bande centrale
-  { id: 'o32', type: 'BLUE', x: 3.8, y: -6.0, next: ['o33', 'c11'] },
+  { id: 'o32', type: 'BLUE', x: 3.8, y: -6.0, next: ['o33', 'c11'], branchLabels: ['Route de l’est (spot étoile)', 'Plongée vers le centre'] },
   { id: 'o33', type: 'ITEM', x: 4.9, y: -5.8, next: ['o34'] },
   { id: 'o34', type: 'BLUE', x: 6.0, y: -5.6, next: ['o35'] },
   { id: 'o35', type: 'BLUE', x: 7.0, y: -5.2, next: ['o36'] },
@@ -79,7 +79,7 @@ const SEEDS: SpaceSeed[] = [
   { id: 'm07', type: 'BLUE', x: 0.3, y: -1.0, next: ['m08'] },
   { id: 'm08', type: 'BLUE', x: 1.4, y: -0.9, next: ['m09'] },
   // Fork LIBRE : raccourci par la boucle intérieure (gardé par LE MUR)
-  { id: 'm09', type: 'BLUE', x: 2.5, y: -0.9, next: ['m10', 'l01'] },
+  { id: 'm09', type: 'BLUE', x: 2.5, y: -0.9, next: ['m10', 'l01'], branchLabels: ['Route principale', 'Raccourci muré 🧱'] },
   { id: 'm10', type: 'RED', x: 3.6, y: -0.8, next: ['m11'] },
   { id: 'm11', type: 'BLUE', x: 4.7, y: -0.7, next: ['m12'] },
   { id: 'm12', type: 'VS', x: 5.8, y: -0.6, next: ['m13'] },
@@ -118,13 +118,42 @@ const SEEDS: SpaceSeed[] = [
   { id: 'q02', type: 'BLUE', x: 4.9, y: 4.8, next: ['l06'], starSpot: true },
 ]
 
+/**
+ * Échelle du plateau : écarte les cases (les seeds sont tracés serrés
+ * depuis imgMap) pour une map plus aérée et lisible.
+ */
+export const BOARD_SCALE = 1.6
+
+/**
+ * Tronçons praticables DANS LES DEUX SENS : les connecteurs et boucles
+ * internes. Aux carrefours (jonctions avec la route principale), le
+ * joueur choisit donc librement sa direction — interdiction du
+ * demi-tour immédiat gérée par le moteur (movement.cameFrom).
+ */
+const TWO_WAY_CHAINS: string[][] = [
+  ['o09', 'c01', 'c02', 'c03', 'c04', 'c05', 'c06', 'm05'], // connecteur ouest (LE TROU)
+  ['o32', 'c11', 'c12', 'c13', 'c14', 'c15', 'm07'], // connecteur centre
+  ['o41', 'm14', 'm13', 'm12', 'm11', 'm10', 'm09'], // bande centrale est
+  ['o45', 'l08', 'l07', 'l06', 'l05', 'l04', 'l03', 'l02', 'l01', 'm09'], // boucle muraille
+]
+
 /** Le plateau, indexé par id de case. */
 export const BOARD: Record<string, BoardSpace> = Object.fromEntries(
   SEEDS.map((s) => {
     const { next, ...rest } = s
-    return [s.id, { ...rest, nextSpaces: next }]
+    return [s.id, { ...rest, x: s.x * BOARD_SCALE, y: s.y * BOARD_SCALE, nextSpaces: [...next] }]
   }),
 )
+
+// Ajoute les arêtes inverses manquantes des tronçons bidirectionnels.
+for (const chain of TWO_WAY_CHAINS) {
+  for (let i = 0; i < chain.length - 1; i++) {
+    const a = BOARD[chain[i]]
+    const b = BOARD[chain[i + 1]]
+    if (!a.nextSpaces.includes(b.id)) a.nextSpaces.push(b.id)
+    if (!b.nextSpaces.includes(a.id)) b.nextSpaces.push(a.id)
+  }
+}
 
 export const SPACE_IDS: string[] = SEEDS.map((s) => s.id)
 
@@ -141,8 +170,23 @@ export const PREV: Record<string, string[]> = (() => {
 /** Emplacements candidats de l'Étoile (points jaunes de la map). */
 export const STAR_SPOTS: string[] = SEEDS.filter((s) => s.starSpot).map((s) => s.id)
 
-/** Toutes les cases d'embranchement (plusieurs sorties). */
-export const FORK_IDS: string[] = SEEDS.filter((s) => s.next.length > 1).map((s) => s.id)
+/**
+ * Les vraies cases de CHOIX : depuis au moins une case d'arrivée, il
+ * reste ≥ 2 directions une fois le demi-tour exclu. (Les simples
+ * nœuds de tronçon bidirectionnel — 2 sorties mais qui se réduisent
+ * toujours à "continuer tout droit" — sont exclus.)
+ */
+export const FORK_IDS: string[] = Object.values(BOARD)
+  .filter((space) => {
+    if (space.nextSpaces.length < 2) return false
+    const incomings = Object.values(BOARD)
+      .filter((p) => p.nextSpaces.includes(space.id))
+      .map((p) => p.id)
+    return incomings.some(
+      (from) => space.nextSpaces.filter((n) => n !== from).length >= 2,
+    )
+  })
+  .map((space) => space.id)
 
 /**
  * Forks gouvernés par un PANNEAU (la case EVENT/SIGNPOST juste avant) :
@@ -158,6 +202,10 @@ export const WALL_SPACE_IDS: string[] = SEEDS.filter((s) => s.wall).map((s) => s
 
 /** Case occupée par Topi Taupe. */
 export const MOLE_SPACE_ID: string | null = SEEDS.find((s) => s.hasMole)?.id ?? null
+
+/** Les 3 cases événement devant chaque arbre. */
+export const TREE_GOOD_IDS: string[] = SEEDS.filter((s) => s.event === 'TREE_GOOD').map((s) => s.id)
+export const TREE_BAD_IDS: string[] = SEEDS.filter((s) => s.event === 'TREE_BAD').map((s) => s.id)
 
 export const START_SPACE_ID = 'o01'
 

@@ -13,6 +13,10 @@ import {
   DICE_BLOCKS,
   HIDDEN_BLOCK_COINS,
   HIDDEN_BLOCK_STAR_CHANCE,
+  KAMEK_BACK_MAX,
+  KAMEK_BACK_MIN,
+  KAMEK_GIVE_COINS,
+  KAMEK_SIPS,
   ITEMS,
   ITEM_POOL,
   LUCKY_COINS,
@@ -47,6 +51,7 @@ import {
 } from './board'
 import { pick, rand, randInt } from './rng'
 import type {
+  BadLuckOutcome,
   BoardSpace,
   DiceBlockId,
   FxEvent,
@@ -82,6 +87,7 @@ export function createInitialState(): GameState {
     pending: null,
     minigame: null,
     fx: null,
+    focusSpaceId: null,
     forcedRoll: null,
     log: [],
     logSeq: 0,
@@ -141,6 +147,16 @@ function setFx(s: GameState, kind: FxEvent['kind'], from: Player, to: Player, am
   }
 }
 
+/** Mélange (Fisher-Yates) basé sur le rng seedable. */
+function shuffled<T>(arr: T[]): T[] {
+  const out = [...arr]
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = randInt(0, i)
+    ;[out[i], out[j]] = [out[j], out[i]]
+  }
+  return out
+}
+
 /** Re-tire la direction dictée par chaque panneau (à chaque manche, règle réelle). */
 function rerollSignposts(s: GameState): void {
   for (const forkId of SIGNPOST_FORK_IDS) {
@@ -182,6 +198,23 @@ function prepareRoll(s: GameState, blockId: DiceBlockId): void {
   }
   const labels: string[] = []
   let total = steps
+  // Dé BONUS du podium : lancé automatiquement EN PLUS du dé principal
+  // (pas une option). Consommé à l'usage. Ignoré si lancer forcé (debug /
+  // dé truqué) pour garder un total prévisible — le bonus est conservé.
+  let bonus: NonNullable<GameState['dice']>['bonus'] = null
+  if (p.rewardDice && s.forcedRoll === null) {
+    const bonusBlock = DICE_BLOCKS[p.rewardDice]
+    const bonusIndex = randInt(0, 5)
+    bonus = {
+      blockId: p.rewardDice,
+      faceIndex: bonusIndex,
+      faceValue: bonusBlock.faces[bonusIndex].value,
+    }
+    total += bonus.faceValue
+    labels.push(`+${bonus.faceValue} ${bonusBlock.label}`)
+    log(s, `🎁 ${p.name} lance aussi son ${bonusBlock.label} : +${bonus.faceValue} !`, 'GOOD')
+    p.rewardDice = null
+  }
   if (s.rollBonus > 0) {
     total += s.rollBonus
     labels.push(`+${s.rollBonus} champignon`)
@@ -199,6 +232,7 @@ function prepareRoll(s: GameState, blockId: DiceBlockId): void {
     steps: total,
     faceCoins,
     modifierLabel: labels.length > 0 ? labels.join(' · ') : null,
+    bonus,
   }
   s.phase = 'ROLLING'
 }
@@ -217,12 +251,24 @@ function advanceMovement(s: GameState): void {
     return
   }
   if (!m.backward && candidates.length > 1) {
+    // Pas de demi-tour immédiat sur les tronçons bidirectionnels :
+    // la case d'où l'on vient est exclue des options.
+    const options = candidates.filter((c) => c !== m.cameFrom)
+    if (options.length <= 1) {
+      m.hopTo = options[0] ?? candidates[0]
+      s.phase = 'MOVING'
+      return
+    }
     const dictated = s.signposts[p.currentSpaceId]
     if (dictated !== undefined) {
-      m.hopTo = candidates[dictated % candidates.length]
-      s.phase = 'MOVING'
-      log(s, `🪧 Le panneau dirige ${p.name} !`, 'NEUTRAL')
-      return
+      const target = candidates[dictated % candidates.length]
+      // le panneau dicte, sauf s'il pointe pile d'où l'on vient
+      if (options.includes(target)) {
+        m.hopTo = target
+        s.phase = 'MOVING'
+        log(s, `🪧 Le panneau dirige ${p.name} !`, 'NEUTRAL')
+        return
+      }
     }
     m.hopTo = null
     s.phase = 'FORK_CHOICE'
@@ -294,19 +340,20 @@ function landOnSpace(s: GameState): void {
       break
     }
     case 'BAD_LUCK': {
-      // wiki SMP : la roue de Kamek fait perdre des items ou des pièces
-      if (p.inventory.length > 0 && rand() < 0.5) {
-        const idx = randInt(0, p.inventory.length - 1)
-        const [lost] = p.inventory.splice(idx, 1)
-        const item = ITEMS[lost]
-        log(s, `${p.name} perd ${item.emoji} ${item.name} (case poisse)`, 'BAD')
-        popup(s, '💀 Case Poisse', `Kamek te confisque ${item.emoji} ${item.name}…`, 'BAD')
-      } else {
-        const amount = pick(BAD_LUCK_COINS)
-        addCoins(p, -amount)
-        log(s, `${p.name} perd ${amount} pièces (case poisse)`, 'BAD')
-        popup(s, '💀 Case Poisse', `La roue de Kamek : -${amount} pièces…`, 'BAD')
-      }
+      // LA ROUE DE KAMEK : le sort est tiré ICI par le moteur ; la
+      // roulette à l'écran ne fait que le révéler avec du suspense.
+      const others = s.players.filter((pl) => pl.id !== p.id)
+      const options: BadLuckOutcome[] = [
+        { kind: 'LOSE_COINS', amount: pick(BAD_LUCK_COINS) },
+        p.inventory.length > 0
+          ? { kind: 'LOSE_ITEM', index: randInt(0, p.inventory.length - 1) }
+          : { kind: 'LOSE_COINS', amount: pick(BAD_LUCK_COINS) },
+        { kind: 'GIVE_COINS', targetId: pick(others).id, amount: KAMEK_GIVE_COINS },
+        { kind: 'SIPS', amount: KAMEK_SIPS },
+        { kind: 'BACK', steps: randInt(KAMEK_BACK_MIN, KAMEK_BACK_MAX) },
+      ]
+      s.focusSpaceId = space.id
+      s.pending = { kind: 'BAD_LUCK_WHEEL', options, resultIndex: randInt(0, options.length - 1) }
       break
     }
     case 'VS': {
@@ -316,6 +363,7 @@ function landOnSpace(s: GameState): void {
     }
     case 'SIP_PLUS':
       p.sipsTaken += SIP_PLUS_AMOUNT
+      setFx(s, 'SIPS', p, p, SIP_PLUS_AMOUNT)
       log(s, `${p.name} boit ${SIP_PLUS_AMOUNT} gorgées !`, 'BAD')
       popup(s, '🍺 Case Gorgées', `Bois ${SIP_PLUS_AMOUNT} gorgées !`, 'BAD')
       break
@@ -332,18 +380,20 @@ function resolveEvent(s: GameState, space: BoardSpace, wasBackward: boolean): vo
   const p = current(s)
   switch (space.event) {
     case 'TREE_GOOD':
+      s.focusSpaceId = space.id
       s.pending = { kind: 'TREE_GOOD_CHOICE' }
       break
     case 'TREE_BAD': {
       // Doc Woody Woods : perdre des pièces OU un dé qui fait reculer
       // (et la case d'arrivée s'active). Pas de recul en chaîne.
+      s.focusSpaceId = space.id
       if (wasBackward || rand() < 0.5) {
         addCoins(p, -TREE_BAD_COINS)
         log(s, `${p.name} perd ${TREE_BAD_COINS} pièces (arbre maudit)`, 'BAD')
         popup(s, '🌳 Arbre maudit', `L'arbre secoue ses branches : -${TREE_BAD_COINS} pièces !`, 'BAD')
       } else {
         const back = randInt(TREE_BAD_BACK_MIN, TREE_BAD_BACK_MAX)
-        s.movement = { remaining: back, total: back, hopTo: null, backward: true }
+        s.movement = { remaining: back, total: back, hopTo: null, backward: true, cameFrom: null }
         log(s, `${p.name} recule de ${back} case(s) (arbre maudit)`, 'BAD')
         popup(s, '🌳 Arbre maudit', `Le dé maudit te souffle ${back} case${back > 1 ? 's' : ''} en arrière !`, 'BAD')
       }
@@ -353,6 +403,7 @@ function resolveEvent(s: GameState, space: BoardSpace, wasBackward: boolean): vo
       // Doc Woody Woods : atterrir devant un panneau le fait pivoter
       // (il changera de toute façon encore au début de la manche suivante).
       const forkId = space.nextSpaces[0]
+      s.focusSpaceId = forkId
       const branches = getSpace(forkId).nextSpaces.length
       s.signposts[forkId] = ((s.signposts[forkId] ?? 0) + 1) % branches
       log(s, 'Le panneau voisin pivote !', 'NEUTRAL')
@@ -361,6 +412,8 @@ function resolveEvent(s: GameState, space: BoardSpace, wasBackward: boolean): vo
     }
     case 'PIT': {
       p.trapped = true
+      s.focusSpaceId = space.id
+      setFx(s, 'PIT_FALL', p, p)
       log(s, `🕳️ ${p.name} tombe dans le trou !`, 'BAD')
       popup(
         s,
@@ -409,6 +462,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         color: cfg.color,
         character: cfg.character,
         currentSpaceId: START_SPACE_ID,
+        avatarUrl: cfg.avatarUrl ?? null,
         inventory: [],
         coins: START_COINS,
         stars: 0,
@@ -509,11 +563,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'ROLL_DICE': {
       if (s.phase !== 'TURN_START') return state
       const p = current(s)
-      // le dé de récompense est un BONUS optionnel, pas un remplacement
+      // dé normal ou dé perso ; le dé de récompense est lancé en PLUS,
+      // automatiquement, par prepareRoll
       const allowed: DiceBlockId[] = ['NORMAL', p.character]
-      if (p.rewardDice) allowed.push(p.rewardDice)
       if (!allowed.includes(action.blockId)) return state
-      if (p.rewardDice && action.blockId === p.rewardDice) p.rewardDice = null
+      s.focusSpaceId = null
       prepareRoll(s, action.blockId)
       return s
     }
@@ -550,13 +604,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           return s
         }
         p.trapped = false
-        s.movement = { remaining: d.steps, total: d.steps, hopTo: null, backward: false }
+        s.movement = { remaining: d.steps, total: d.steps, hopTo: null, backward: false, cameFrom: null }
         s.phase = 'SPACE_ACTION'
         log(s, `💪 ${p.name} s'extirpe du trou avec un ${d.steps} !`, 'GOOD')
         popup(s, '💪 LIBÉRÉ !', `Un ${d.steps} ! Tu t'extirpes du trou et tu avances.`, 'GOOD')
         return s
       }
-      s.movement = { remaining: d.steps, total: d.steps, hopTo: null, backward: false }
+      s.movement = { remaining: d.steps, total: d.steps, hopTo: null, backward: false, cameFrom: null }
       advanceMovement(s)
       return s
     }
@@ -566,6 +620,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (s.phase !== 'MOVING' || !s.movement?.hopTo) return state
       const p = current(s)
       const m = s.movement
+      m.cameFrom = p.currentSpaceId
       p.currentSpaceId = m.hopTo!
       m.hopTo = null
       m.remaining -= 1
@@ -578,6 +633,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           s.phase = 'PASS_EVENT'
           if (roll >= wallStrength) {
             s.walls[p.currentSpaceId] = 0
+            setFx(s, 'WALL_BREAK', p, p, roll)
             log(s, `💥 ${p.name} CASSE le mur (lancer ${roll} ≥ ${wallStrength}) !`, 'GOOD')
             popup(
               s,
@@ -600,16 +656,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
         if (p.currentSpaceId === s.starSpaceId) {
           s.phase = 'PASS_EVENT'
+          s.focusSpaceId = p.currentSpaceId
           s.pending = { kind: 'STAR_PROMPT' }
           return s
         }
         if (arrived.hasBoo) {
           s.phase = 'PASS_EVENT'
+          s.focusSpaceId = p.currentSpaceId
           s.pending = { kind: 'BOO_PROMPT' }
           return s
         }
         if (arrived.hasMole) {
           s.phase = 'PASS_EVENT'
+          s.focusSpaceId = p.currentSpaceId
           s.pending = { kind: 'MOLE_PROMPT', cost: randInt(MOLE_COST_MIN, MOLE_COST_MAX) }
           return s
         }
@@ -634,6 +693,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!pending) return state
       const p = current(s)
       s.pending = null
+      s.focusSpaceId = null
       const choice = action.choice
       switch (choice.kind) {
         case 'DISMISS': {
@@ -652,6 +712,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           if (target.id === p.id) return state
           target.sipsTaken += sips
           p.sipsGiven += sips
+          setFx(s, 'SIPS', p, target, sips)
           log(s, `${p.name} distribue ${sips} gorgées à ${target.name} !`, 'GOOD')
           popup(s, '🍻 Distribution', `${target.name} boit ${sips} gorgées, santé !`, 'GOOD')
           return s
@@ -709,6 +770,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           if (choice.buy && p.coins >= STAR_COST) {
             addCoins(p, -STAR_COST)
             p.stars += 1
+            setFx(s, 'STAR_BUY', p, p)
             const others = STAR_SPOTS.filter((id) => id !== s.starSpaceId)
             s.starSpaceId = pick(others)
             log(s, `⭐ ${p.name} achète une Étoile ! Toadette déménage…`, 'GOOD')
@@ -727,9 +789,68 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             pot += wager
           }
           s.vsConvertedIds.push(p.currentSpaceId)
-          s.minigame = { context: 'VS', pot, category: 'FFA', title: null, groups: null }
+          s.minigame = { context: 'VS', pot, category: 'FFA', title: null, groups: null, teams: null }
           s.phase = 'MINIGAME_TITLE'
           log(s, `Case VS : ${pot} pièces dans le pot !`, 'SYSTEM')
+          return s
+        }
+        case 'BAD_LUCK_DONE': {
+          if (pending.kind !== 'BAD_LUCK_WHEEL') return state
+          const outcome = pending.options[pending.resultIndex]
+          switch (outcome.kind) {
+            case 'LOSE_COINS': {
+              addCoins(p, -outcome.amount)
+              log(s, `🔮 Kamek : ${p.name} perd ${outcome.amount} pièces`, 'BAD')
+              popup(s, '🔮 Roue de Kamek', `Le sort s'abat : -${outcome.amount} pièces !`, 'BAD')
+              break
+            }
+            case 'LOSE_ITEM': {
+              const [lost] = p.inventory.splice(Math.min(outcome.index, p.inventory.length - 1), 1)
+              const item = lost ? ITEMS[lost] : null
+              log(s, `🔮 Kamek confisque ${item ? item.name : 'un objet'} à ${p.name}`, 'BAD')
+              popup(
+                s,
+                '🔮 Roue de Kamek',
+                item ? `Kamek aspire ${item.emoji} ${item.name} dans sa manche !` : 'Kamek ne trouve rien à voler…',
+                'BAD',
+              )
+              break
+            }
+            case 'GIVE_COINS': {
+              const target = playerById(s, outcome.targetId)
+              const amount = Math.min(outcome.amount, p.coins)
+              p.coins -= amount
+              target.coins += amount
+              setFx(s, 'STEAL_COINS', p, target, amount)
+              log(s, `🔮 Kamek : ${p.name} donne ${amount} pièces à ${target.name}`, 'BAD')
+              popup(s, '🔮 Roue de Kamek', `Tes pièces s'envolent : ${amount} 🪙 pour ${target.name} !`, 'BAD')
+              break
+            }
+            case 'SIPS': {
+              p.sipsTaken += outcome.amount
+              setFx(s, 'SIPS', p, p, outcome.amount)
+              log(s, `🔮 Kamek : ${p.name} boit ${outcome.amount} gorgées`, 'BAD')
+              popup(s, '🔮 Roue de Kamek', `Potion amère : bois ${outcome.amount} gorgées !`, 'BAD')
+              break
+            }
+            case 'BACK': {
+              s.movement = {
+                remaining: outcome.steps,
+                total: outcome.steps,
+                hopTo: null,
+                backward: true,
+                cameFrom: null,
+              }
+              log(s, `🔮 Kamek souffle ${p.name} ${outcome.steps} cases en arrière`, 'BAD')
+              popup(
+                s,
+                '🔮 Roue de Kamek',
+                `Une bourrasque magique te souffle ${outcome.steps} cases en arrière !`,
+                'BAD',
+              )
+              break
+            }
+          }
           return s
         }
         case 'MOLE': {
@@ -761,6 +882,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       s.dice = null
       s.movement = null
       s.pending = null
+      s.focusSpaceId = null
       s.itemUsedThisTurn = false
       s.rollBonus = 0
       if (s.currentPlayerIndex < s.players.length - 1) {
@@ -768,7 +890,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         s.phase = 'TURN_START'
         log(s, `Au tour de ${current(s).name} !`, 'SYSTEM')
       } else {
-        s.minigame = { context: 'ROUND_END', pot: 0, category: null, title: null, groups: null }
+        s.minigame = { context: 'ROUND_END', pot: 0, category: null, title: null, groups: null, teams: null }
         s.phase = 'MINIGAME_CATEGORY'
         log(s, `Fin de la manche ${s.round} — place au MINIJEU !`, 'SYSTEM')
       }
@@ -778,8 +900,28 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     // ----- Minijeux -----
     case 'SPIN_CATEGORY': {
       if (s.phase !== 'MINIGAME_CATEGORY' || !s.minigame || s.minigame.category) return state
-      s.minigame.category = pick([...MINIGAME_CATEGORIES])
-      log(s, `Catégorie tirée : ${s.minigame.category} !`, 'SYSTEM')
+      const category = pick([...MINIGAME_CATEGORIES])
+      s.minigame.category = category
+      log(s, `Catégorie tirée : ${category} !`, 'SYSTEM')
+      // Tirage AUTOMATIQUE des participants : plus de sélection manuelle.
+      if (category === '1v1' || category === '2v2') {
+        const order = shuffled(s.players.map((pl) => pl.id))
+        s.minigame.teams =
+          category === '1v1'
+            ? [[order[0]], [order[1]]]
+            : [
+                [order[0], order[1]],
+                [order[2], order[3]],
+              ]
+        const names = (g: PlayerId[]) => g.map((id) => playerById(s, id).name).join(' & ')
+        log(
+          s,
+          `⚔️ Tirage : ${names(s.minigame.teams[0])} VS ${names(s.minigame.teams[1])} !`,
+          'SYSTEM',
+        )
+      } else {
+        s.minigame.teams = null
+      }
       return s
     }
 
@@ -863,8 +1005,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       s.rollBonus = 0
       rerollSignposts(s) // règle réelle : les panneaux changent à chaque manche
       resetWalls(s)
+      // Plan de transition : la caméra survole le plateau et un récap
+      // explique les nouvelles directions des panneaux.
+      s.phase = 'ROUND_INTRO'
+      log(s, `Manche ${s.round}/${s.maxRounds} — panneaux re-tirés, murs reconstruits !`, 'SYSTEM')
+      return s
+    }
+
+    case 'BEGIN_ROUND': {
+      if (s.phase !== 'ROUND_INTRO') return state
       s.phase = 'TURN_START'
-      log(s, `Manche ${s.round}/${s.maxRounds} — ${current(s).name} commence ! (panneaux re-tirés, murs reconstruits)`, 'SYSTEM')
+      log(s, `${current(s).name} ouvre la manche ${s.round} !`, 'SYSTEM')
       return s
     }
 
@@ -908,7 +1059,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       s.dice = null
       s.movement = null
       s.pending = null
-      s.minigame = { context: 'ROUND_END', pot: 0, category: null, title: null, groups: null }
+      s.minigame = { context: 'ROUND_END', pot: 0, category: null, title: null, groups: null, teams: null }
       s.phase = 'MINIGAME_CATEGORY'
       log(s, '[DEBUG] Phase minijeu déclenchée', 'SYSTEM')
       return s

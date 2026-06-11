@@ -42,6 +42,8 @@ export interface BoardSpace {
   wall?: boolean
   /** Emplacement candidat pour l'Étoile (points jaunes de la map). */
   starSpot?: boolean
+  /** Libellés humains des branches sortantes (forks), même ordre que nextSpaces. */
+  branchLabels?: string[]
 }
 
 // ---------- Dés ----------
@@ -135,8 +137,13 @@ export interface Player {
   stars: number
   sipsTaken: number
   sipsGiven: number
-  /** Dé BONUS gagné au podium : 3e option de lancer, consommé à l'usage. */
+  /**
+   * Dé BONUS gagné au podium : lancé AUTOMATIQUEMENT en plus du dé
+   * principal au prochain lancer, puis consommé.
+   */
   rewardDice: RewardDiceId | null
+  /** Image custom (dataURL) affichée au-dessus du pion à la place de l'emoji. */
+  avatarUrl: string | null
   /** Champignon poison subi : -2 au prochain lancer. */
   poisoned: boolean
   /** Coincé dans le trou : il faut un lancer suffisant pour sortir. */
@@ -147,6 +154,8 @@ export interface LobbyPlayerConfig {
   name: string
   color: string
   character: CharacterId
+  /** Image custom (dataURL) optionnelle pour le pion. */
+  avatarUrl?: string | null
 }
 
 // ---------- Minijeux ----------
@@ -170,6 +179,12 @@ export interface MinigameState {
    * 1v1 : vainqueur/perdant/spectateurs).
    */
   groups: PlayerId[][] | null
+  /**
+   * Participants tirés AUTOMATIQUEMENT à la roulette de catégorie :
+   * 1v1 -> [[a], [b]] (les 2 duellistes), 2v2 -> [[a, b], [c, d]].
+   * null pour FFA (tout le monde joue).
+   */
+  teams: PlayerId[][] | null
 }
 
 // ---------- Phases du jeu ----------
@@ -188,6 +203,7 @@ export type GamePhase =
   | 'MINIGAME_PLAY'
   | 'PODIUM'
   | 'REWARDS'
+  | 'ROUND_INTRO'
   | 'GAME_OVER'
 
 export interface DiceRollState {
@@ -202,6 +218,8 @@ export interface DiceRollState {
   faceCoins: number
   /** Détail des modificateurs pour l'affichage. */
   modifierLabel: string | null
+  /** Dé BONUS du podium, lancé en plus du dé principal (2e cube 3D). */
+  bonus: { blockId: RewardDiceId; faceIndex: number; faceValue: number } | null
 }
 
 export interface MovementState {
@@ -213,19 +231,42 @@ export interface MovementState {
   hopTo: string | null
   /** Déplacement arrière (Arbre maudit) : on remonte le graphe. */
   backward: boolean
+  /**
+   * Case d'où l'on vient (pas précédent) : aux carrefours bidirectionnels,
+   * interdit le demi-tour immédiat.
+   */
+  cameFrom: string | null
 }
 
-// ---------- Effets visuels one-shot (vols) ----------
+// ---------- Effets visuels one-shot ----------
+
+export type FxKind =
+  | 'STEAL_COINS' // vol de pièces (Coinado, Boo)
+  | 'STEAL_STAR' // vol d'Étoile (Boo)
+  | 'STAR_BUY' // achat d'Étoile à Toadette
+  | 'WALL_BREAK' // mur pulvérisé
+  | 'PIT_FALL' // chute dans le trou
+  | 'SIPS' // gorgées bues / distribuées
 
 export interface FxEvent {
   id: number
-  kind: 'STEAL_COINS' | 'STEAL_STAR'
+  kind: FxKind
   amount?: number
   fromName: string
   toName: string
   fromColor: string
   toColor: string
 }
+
+// ---------- Roue de Kamek (case poisse) ----------
+
+/** Un sort de la Roue de Kamek. Tiré par le moteur, révélé par la roulette. */
+export type BadLuckOutcome =
+  | { kind: 'LOSE_COINS'; amount: number }
+  | { kind: 'LOSE_ITEM'; index: number }
+  | { kind: 'GIVE_COINS'; targetId: PlayerId; amount: number }
+  | { kind: 'SIPS'; amount: number }
+  | { kind: 'BACK'; steps: number }
 
 // ---------- Actions en attente (popups / choix à l'écran) ----------
 
@@ -240,6 +281,7 @@ export type PendingAction =
   | { kind: 'STAR_PROMPT' }
   | { kind: 'VS_WAGER'; amount: number }
   | { kind: 'MOLE_PROMPT'; cost: number }
+  | { kind: 'BAD_LUCK_WHEEL'; options: BadLuckOutcome[]; resultIndex: number }
 
 /** Réponses possibles à une PendingAction. */
 export type PendingChoice =
@@ -251,6 +293,7 @@ export type PendingChoice =
   | { kind: 'STAR'; buy: boolean }
   | { kind: 'VS_OK' }
   | { kind: 'MOLE'; pay: boolean; directions?: Record<string, number> }
+  | { kind: 'BAD_LUCK_DONE' }
 
 // ---------- État global ----------
 
@@ -286,8 +329,10 @@ export interface GameState {
   movement: MovementState | null
   pending: PendingAction | null
   minigame: MinigameState | null
-  /** Effet visuel one-shot (vol de pièces / d'étoile). */
+  /** Effet visuel one-shot (vols, étoile, mur, trou, gorgées). */
   fx: FxEvent | null
+  /** Case que la caméra doit cadrer pendant un événement (arbres, trou, panneaux…). */
+  focusSpaceId: string | null
   /** Forçage du prochain lancer (DEBUG ou Dé truqué). */
   forcedRoll: number | null
   log: LogEntry[]
@@ -316,6 +361,7 @@ export type GameAction =
   | { type: 'GO_PODIUM' }
   | { type: 'SET_PODIUM'; groups: PlayerId[][] }
   | { type: 'CONTINUE' }
+  | { type: 'BEGIN_ROUND' }
   | { type: 'RESTART' }
   // ----- God Mode (DebugMode.md + extensions) -----
   | { type: 'DEBUG_SET_MODE'; mode: GameMode }

@@ -15,6 +15,8 @@ import { LobbyScreen } from './components/ui/LobbyScreen'
 import { MinigameOverlay } from './components/ui/MinigameOverlay'
 import { PodiumScreen } from './components/ui/PodiumScreen'
 import { RewardsScreen } from './components/ui/RewardsScreen'
+import { RoundIntro } from './components/ui/RoundIntro'
+import { FxOverlay } from './components/ui/FxOverlay'
 import { GameProvider, useGame } from './game/useGameState'
 
 export default function App() {
@@ -56,8 +58,10 @@ function Shell() {
           <MinigameOverlay />
           {state.phase === 'PODIUM' && <PodiumScreen />}
           {state.phase === 'REWARDS' && <RewardsScreen />}
+          {state.phase === 'ROUND_INTRO' && <RoundIntro />}
           {state.phase === 'GAME_OVER' && <GameOverScreen />}
           <EventPopup />
+          <FxOverlay />
         </>
       )}
 

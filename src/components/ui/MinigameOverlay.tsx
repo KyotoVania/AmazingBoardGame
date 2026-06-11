@@ -5,7 +5,8 @@
 
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
-import { MINIGAMES, MINIGAME_CATEGORIES } from '../../game/constants'
+import { CHARACTERS, MINIGAMES, MINIGAME_CATEGORIES } from '../../game/constants'
+import type { PlayerId } from '../../game/types'
 import { useGame } from '../../game/useGameState'
 
 export function MinigameOverlay() {
@@ -64,6 +65,7 @@ function CategoryStage() {
               <p className="text-2xl font-extrabold">
                 Catégorie : <span className="text-gold-300">{category}</span> !
               </p>
+              <TeamsBanner />
               <SpinButton onClick={spinTitle}>➜ ROULETTE DES JEUX</SpinButton>
             </motion.div>
           )}
@@ -129,7 +131,55 @@ function PlayStage() {
       {mg.context === 'VS' && (
         <p className="mt-2 text-lg font-extrabold text-fuchsia-300">💰 {mg.pot} pièces en jeu !</p>
       )}
-      <SpinButton onClick={goPodium}>📋 SAISIR LE PODIUM</SpinButton>
+      <TeamsBanner />
+      <SpinButton onClick={goPodium}>📋 SAISIR LE {mg.teams ? 'RÉSULTAT' : 'PODIUM'}</SpinButton>
+    </motion.div>
+  )
+}
+
+// ---------- Équipes tirées automatiquement (1v1 / 2v2) ----------
+
+function TeamsBanner() {
+  const { state } = useGame()
+  const mg = state.minigame
+  if (!mg?.teams) return null
+  const playing = new Set(mg.teams.flat())
+  const spectators = state.players.filter((p) => !playing.has(p.id))
+
+  const TeamChips = ({ ids }: { ids: PlayerId[] }) => (
+    <span className="inline-flex items-center gap-2">
+      {ids.map((id) => {
+        const p = state.players.find((pl) => pl.id === id)!
+        return (
+          <span
+            key={id}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-base font-extrabold"
+            style={{ backgroundColor: p.color, color: '#14101f' }}
+          >
+            {CHARACTERS[p.character].emoji} {p.name}
+          </span>
+        )
+      })}
+    </span>
+  )
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+      className="mt-5"
+    >
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <TeamChips ids={mg.teams[0]} />
+        <span className="font-display text-gold-300 text-2xl">VS</span>
+        <TeamChips ids={mg.teams[1]} />
+      </div>
+      {spectators.length > 0 && (
+        <p className="text-cream/55 mt-2 text-sm font-bold">
+          👀 Spectateurs : {spectators.map((p) => p.name).join(' & ')}
+        </p>
+      )}
     </motion.div>
   )
 }
