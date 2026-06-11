@@ -502,5 +502,6 @@ export function defaultGameConfig(): GameConfig {
     pitEscapeMin: PIT_ESCAPE_MIN,
     wallStrength: WALL_INITIAL_STRENGTH,
     minigames: structuredClone(MINIGAMES),
+    cursedIntervalMin: 10,
   }
 }

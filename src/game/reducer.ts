@@ -1045,6 +1045,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         sipMinus: num(patch.sipMinus, s.config.sipMinus),
         pitEscapeMin: num(patch.pitEscapeMin, s.config.pitEscapeMin, 1),
         wallStrength: num(patch.wallStrength, s.config.wallStrength, 1),
+        cursedIntervalMin: num(patch.cursedIntervalMin, s.config.cursedIntervalMin),
         minigames: patch.minigames
           ? {
               '1v1': patch.minigames['1v1'].filter(Boolean).length > 0 ? patch.minigames['1v1'].filter(Boolean) : s.config.minigames['1v1'],

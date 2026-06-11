@@ -345,6 +345,18 @@ export const NARRATIVES = {
     `{amount} pièces dans un bloc caché pour {name} ! Tu trébuches sur la fortune, littéralement.`,
   ],
 
+  /* ── Événements CURSED (interruptions random à l'écran) ───────────── */
+
+  /** Cursed random event — texte hurlé par-dessus l'image. No vars. */
+  CURSED: [
+    `⚠️ INTERRUPTION COSMIQUE ⚠️ TOUT LE MONDE BOIT UNE GORGÉE. C'est la règle. On l'a inventée à l'instant.`,
+    `LE VOID VOUS REGARDE. Le dernier qui pose son verre sur la table boit 2 gorgées.`,
+    `ERREUR 418 : VOUS ÊTES UNE THÉIÈRE. Le plus grand de la pièce boit.`,
+    `IL EST LÀ. IL A TOUJOURS ÉTÉ LÀ. Trinquez avec votre voisin de gauche ou subissez sa colère.`,
+    `MOMENT CURSED : parlez tous avec un accent jusqu'au prochain tour de dé, sinon gorgée.`,
+    `LE JEU EXIGE UN SACRIFICE. Le joueur avec le moins de pièces boit une gorgée de la honte.`,
+    `BZZZT— SIGNAL CORROMPU. Échangez vos places autour de la table. MAINTENANT.`,
+  ],
 } as const;
 
 // ---------------------------------------------------------------------------

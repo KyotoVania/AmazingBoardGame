@@ -323,6 +323,11 @@ export interface GameConfig {
   wallStrength: number
   /** Tables de minijeux par catégorie. */
   minigames: MinigameTable
+  /**
+   * Intervalle (minutes) entre deux ÉVÉNEMENTS CURSED (image/GIF plein
+   * écran tirée de public/images/cursed/). 0 = désactivé.
+   */
+  cursedIntervalMin: number
 }
 
 // ---------- État global ----------

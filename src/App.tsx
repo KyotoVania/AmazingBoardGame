@@ -17,6 +17,7 @@ import { LobbyScreen } from './components/ui/LobbyScreen'
 import { MinigameOverlay } from './components/ui/MinigameOverlay'
 import { PodiumScreen } from './components/ui/PodiumScreen'
 import { RewardsScreen } from './components/ui/RewardsScreen'
+import { CursedOverlay } from './components/ui/CursedOverlay'
 import { ResumeBanner } from './components/ui/ResumeBanner'
 import { RoundIntro } from './components/ui/RoundIntro'
 import { FxOverlay } from './components/ui/FxOverlay'
@@ -73,6 +74,7 @@ function Shell() {
           {state.phase === 'GAME_OVER' && <GameOverScreen />}
           <EventPopup />
           <FxOverlay />
+          <CursedOverlay />
         </>
       )}
 

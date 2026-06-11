@@ -92,6 +92,7 @@ const RULE_FIELDS: { key: keyof Omit<GameConfig, 'minigames'>; label: string; hi
   { key: 'sipMinus', label: '🍻 Case distribution', hint: 'gorgées offertes' },
   { key: 'pitEscapeMin', label: '🕳️ Sortie du trou', hint: 'lancer minimum' },
   { key: 'wallStrength', label: '🧱 Solidité du mur', hint: 'au début de manche' },
+  { key: 'cursedIntervalMin', label: '💀 Événement cursed', hint: 'minutes (0 = off)' },
 ]
 
 function RulesTab() {

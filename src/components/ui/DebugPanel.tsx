@@ -103,6 +103,14 @@ export function DebugPanel() {
             🎰 DÉCLENCHER LE MINIJEU
           </button>
 
+          {/* ----- Cursed now ----- */}
+          <button
+            onClick={() => window.dispatchEvent(new Event('www-cursed-now'))}
+            className="font-display mt-2 rounded-xl bg-gradient-to-b from-red-500 to-red-700 px-4 py-3 text-lg tracking-wide text-white shadow-[0_4px_0_rgba(0,0,0,0.35)]"
+          >
+            💀 ÉVÉNEMENT CURSED NOW
+          </button>
+
           {/* ----- Edit Stats ----- */}
           <Section title="📊 Éditer les stats">
             <PlayerSelect players={state.players} value={statsTarget} onChange={setStatsTarget} />
