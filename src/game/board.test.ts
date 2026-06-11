@@ -1,7 +1,17 @@
 // Tests d'intégrité du plateau Woody Woods et des définitions de dés.
 import { describe, expect, it } from 'vitest'
-import { BOARD, FORK_IDS, PREV, SPACE_IDS, STAR_SPOTS, START_SPACE_ID } from './board'
-import { DICE_BLOCKS, MINIGAMES, PODIUM_REWARDS } from './constants'
+import {
+  BOARD,
+  FORK_IDS,
+  MOLE_SPACE_ID,
+  PREV,
+  SIGNPOST_FORK_IDS,
+  SPACE_IDS,
+  STAR_SPOTS,
+  START_SPACE_ID,
+  WALL_SPACE_IDS,
+} from './board'
+import { DICE_BLOCKS, MINIGAMES, PODIUM_LAYOUTS } from './constants'
 import type { DiceBlockId } from './types'
 
 describe('plateau Woody Woods', () => {
@@ -40,18 +50,34 @@ describe('plateau Woody Woods', () => {
     expect(seen.size).toBe(SPACE_IDS.length)
   })
 
-  it('3 emplacements d’Étoile et 3 embranchements à panneau', () => {
-    expect(STAR_SPOTS).toHaveLength(3)
-    expect(FORK_IDS).toHaveLength(3)
+  it('le plateau est assez grand pour une vraie partie (≥ 75 cases)', () => {
+    expect(SPACE_IDS.length).toBeGreaterThanOrEqual(75)
+  })
+
+  it('4 emplacements d’Étoile, 5 forks dont 3 à panneau', () => {
+    expect(STAR_SPOTS).toHaveLength(4)
+    expect(FORK_IDS).toHaveLength(5)
+    expect(SIGNPOST_FORK_IDS).toHaveLength(3)
+    for (const id of SIGNPOST_FORK_IDS) expect(FORK_IDS).toContain(id)
     for (const id of STAR_SPOTS) expect(BOARD[id]).toBeDefined()
   })
 
-  it('chaque case EVENT panneau précède directement un fork', () => {
+  it('chaque case EVENT panneau précède directement un fork à panneau', () => {
     const signposts = Object.values(BOARD).filter((s) => s.event === 'SIGNPOST')
     expect(signposts.length).toBe(3)
     for (const s of signposts) {
-      expect(FORK_IDS).toContain(s.nextSpaces[0])
+      expect(SIGNPOST_FORK_IDS).toContain(s.nextSpaces[0])
+      expect(BOARD[s.nextSpaces[0]].nextSpaces.length).toBeGreaterThan(1)
     }
+  })
+
+  it('points d’intérêt : trou, mur, Boo et Topi Taupe', () => {
+    const pits = Object.values(BOARD).filter((s) => s.event === 'PIT')
+    expect(pits).toHaveLength(1)
+    expect(WALL_SPACE_IDS).toHaveLength(1)
+    expect(Object.values(BOARD).filter((s) => s.hasBoo)).toHaveLength(1)
+    expect(MOLE_SPACE_ID).not.toBeNull()
+    expect(BOARD[MOLE_SPACE_ID!]).toBeDefined()
   })
 })
 
@@ -96,12 +122,24 @@ describe('configuration des minijeux et du podium', () => {
     }
   })
 
-  it('le podium définit 4 récompenses (or/argent/normal/maudit)', () => {
-    expect(PODIUM_REWARDS).toHaveLength(4)
-    expect(PODIUM_REWARDS[0].dice).toBe('GOLD')
-    expect(PODIUM_REWARDS[1].dice).toBe('SILVER')
-    expect(PODIUM_REWARDS[2].dice).toBeNull()
-    expect(PODIUM_REWARDS[3].dice).toBe('CURSED')
-    expect(PODIUM_REWARDS.map((r) => r.sips)).toEqual([0, 1, 2, 3])
+  it('chaque layout de podium place exactement 4 joueurs', () => {
+    for (const [category, layout] of Object.entries(PODIUM_LAYOUTS)) {
+      const total = layout.reduce((acc, slot) => acc + slot.count, 0)
+      expect(total, category).toBe(4)
+    }
+  })
+
+  it('le layout FFA garde les récompenses du cahier des charges', () => {
+    const ffa = PODIUM_LAYOUTS.FFA
+    expect(ffa.map((s) => s.dice)).toEqual(['GOLD', 'SILVER', null, 'CURSED'])
+    expect(ffa.map((s) => s.sips)).toEqual([0, 1, 2, 3])
+  })
+
+  it('le layout 2v2 fait 2 gagnants / 2 perdants', () => {
+    expect(PODIUM_LAYOUTS['2v2'].map((s) => s.count)).toEqual([2, 2])
+  })
+
+  it('le layout 1v1 fait vainqueur / perdant / 2 spectateurs', () => {
+    expect(PODIUM_LAYOUTS['1v1'].map((s) => s.count)).toEqual([1, 1, 2])
   })
 })

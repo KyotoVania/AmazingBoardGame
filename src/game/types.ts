@@ -21,8 +21,8 @@ export type SpaceType =
   | 'SIP_PLUS'
   | 'SIP_MINUS'
 
-/** Événements Woody Woods portés par les cases EVENT. */
-export type BoardEventKind = 'TREE_GOOD' | 'TREE_BAD' | 'SIGNPOST'
+/** Événements portés par les cases EVENT (Woody Woods + customs). */
+export type BoardEventKind = 'TREE_GOOD' | 'TREE_BAD' | 'SIGNPOST' | 'PIT'
 
 export interface BoardSpace {
   id: string
@@ -32,10 +32,14 @@ export interface BoardSpace {
   y: number
   /** Arêtes sortantes du graphe. Plusieurs entrées = embranchement. */
   nextSpaces: string[]
-  /** Pour les cases EVENT : quel événement Woody Woods. */
+  /** Pour les cases EVENT : quel événement. */
   event?: BoardEventKind
   /** Un Boo est posté ici : effet proposé au passage. */
   hasBoo?: boolean
+  /** Topi Taupe est posté ici : réoriente les panneaux contre des pièces. */
+  hasMole?: boolean
+  /** Un mur destructible barre l'entrée de cette case. */
+  wall?: boolean
   /** Emplacement candidat pour l'Étoile (points jaunes de la map). */
   starSpot?: boolean
 }
@@ -131,10 +135,12 @@ export interface Player {
   stars: number
   sipsTaken: number
   sipsGiven: number
-  /** Dé de récompense du podium, à usage unique au prochain lancer. */
+  /** Dé BONUS gagné au podium : 3e option de lancer, consommé à l'usage. */
   rewardDice: RewardDiceId | null
   /** Champignon poison subi : -2 au prochain lancer. */
   poisoned: boolean
+  /** Coincé dans le trou : il faut un lancer suffisant pour sortir. */
+  trapped: boolean
 }
 
 export interface LobbyPlayerConfig {
@@ -158,8 +164,12 @@ export interface MinigameState {
   pot: number
   category: MinigameCategory | null
   title: string | null
-  /** Classement saisi au podium : ranking[0] = 1er. */
-  ranking: PlayerId[] | null
+  /**
+   * Résultat saisi au podium : un groupe de joueurs par emplacement du
+   * layout de la catégorie (FFA : 4 rangs ; 2v2 : gagnants/perdants ;
+   * 1v1 : vainqueur/perdant/spectateurs).
+   */
+  groups: PlayerId[][] | null
 }
 
 // ---------- Phases du jeu ----------
@@ -205,6 +215,18 @@ export interface MovementState {
   backward: boolean
 }
 
+// ---------- Effets visuels one-shot (vols) ----------
+
+export interface FxEvent {
+  id: number
+  kind: 'STEAL_COINS' | 'STEAL_STAR'
+  amount?: number
+  fromName: string
+  toName: string
+  fromColor: string
+  toColor: string
+}
+
 // ---------- Actions en attente (popups / choix à l'écran) ----------
 
 export type PopupTone = 'GOOD' | 'BAD' | 'NEUTRAL'
@@ -217,6 +239,7 @@ export type PendingAction =
   | { kind: 'BOO_PICK_VICTIM'; steal: 'COINS' | 'STAR' }
   | { kind: 'STAR_PROMPT' }
   | { kind: 'VS_WAGER'; amount: number }
+  | { kind: 'MOLE_PROMPT'; cost: number }
 
 /** Réponses possibles à une PendingAction. */
 export type PendingChoice =
@@ -227,6 +250,7 @@ export type PendingChoice =
   | { kind: 'BOO_VICTIM'; targetId: PlayerId }
   | { kind: 'STAR'; buy: boolean }
   | { kind: 'VS_OK' }
+  | { kind: 'MOLE'; pay: boolean; directions?: Record<string, number> }
 
 // ---------- État global ----------
 
@@ -250,8 +274,10 @@ export interface GameState {
   starSpaceId: string
   /** Cases VS converties en cases bleues après usage (règle SMP). */
   vsConvertedIds: string[]
-  /** Index de la branche "suggérée" par les panneaux Woody Woods, par fork. */
+  /** Direction DICTÉE par chaque panneau (index de branche, par fork). */
   signposts: Record<string, number>
+  /** Solidité restante des murs, par case (0 = cassé). */
+  walls: Record<string, number>
   /** Un seul item utilisable avant le lancer. */
   itemUsedThisTurn: boolean
   /** Bonus de déplacement du tour (Champi +3 / Champi doré +5). */
@@ -260,6 +286,8 @@ export interface GameState {
   movement: MovementState | null
   pending: PendingAction | null
   minigame: MinigameState | null
+  /** Effet visuel one-shot (vol de pièces / d'étoile). */
+  fx: FxEvent | null
   /** Forçage du prochain lancer (DEBUG ou Dé truqué). */
   forcedRoll: number | null
   log: LogEntry[]
@@ -286,13 +314,17 @@ export type GameAction =
   | { type: 'SPIN_TITLE' }
   | { type: 'GO_PLAY' }
   | { type: 'GO_PODIUM' }
-  | { type: 'SET_PODIUM'; ranking: PlayerId[] }
+  | { type: 'SET_PODIUM'; groups: PlayerId[][] }
   | { type: 'CONTINUE' }
   | { type: 'RESTART' }
-  // ----- God Mode (DebugMode.md) -----
+  // ----- God Mode (DebugMode.md + extensions) -----
   | { type: 'DEBUG_SET_MODE'; mode: GameMode }
   | { type: 'DEBUG_FORCE_ROLL'; value: number | null }
   | { type: 'DEBUG_TELEPORT'; playerId: PlayerId; spaceId: string }
   | { type: 'DEBUG_INJECT_ITEM'; playerId: PlayerId; itemId: ItemId }
   | { type: 'DEBUG_TRIGGER_MINIGAME' }
   | { type: 'DEBUG_EDIT_STATS'; playerId: PlayerId; patch: DebugStatsPatch }
+  | { type: 'DEBUG_SET_TURN'; playerId: PlayerId }
+  | { type: 'DEBUG_SET_WALL'; spaceId: string; strength: number }
+  | { type: 'DEBUG_SET_TRAPPED'; playerId: PlayerId; trapped: boolean }
+  | { type: 'DEBUG_REROLL_SIGNPOSTS' }

@@ -4,10 +4,13 @@
 // ============================================================
 
 import { AnimatePresence, motion } from 'framer-motion'
+import { useState } from 'react'
+import { SIGNPOST_FORK_IDS, getSpace } from '../../game/board'
 import { BOO_STAR_COST, STAR_COST, TREE_COIN_FRUIT } from '../../game/constants'
-import { getCurrentPlayer } from '../../game/reducer'
+import { effectiveSpaceType, getCurrentPlayer } from '../../game/reducer'
 import type { PendingAction, Player, PlayerId, PopupTone } from '../../game/types'
 import { useGame } from '../../game/useGameState'
+import { SPACE_TYPE_LABELS, arrowFor } from './labels'
 
 const TONE_RING: Record<PopupTone, string> = {
   GOOD: 'ring-emerald-400/70',
@@ -172,7 +175,66 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
           <BigButton onClick={() => resolvePending({ kind: 'VS_OK' })}>QUE LE MEILLEUR GAGNE !</BigButton>
         </>
       )
+
+    case 'MOLE_PROMPT':
+      return <MolePrompt cost={pending.cost} player={player} />
   }
+}
+
+// ---------- Topi Taupe : réorienter les panneaux contre des pièces ----------
+
+function MolePrompt({ cost, player }: { cost: number; player: Player }) {
+  const { state, resolvePending } = useGame()
+  const [directions, setDirections] = useState<Record<string, number>>(() => ({
+    ...state.signposts,
+  }))
+
+  const cycle = (forkId: string) => {
+    const branches = getSpace(forkId).nextSpaces.length
+    setDirections((d) => ({ ...d, [forkId]: ((d[forkId] ?? 0) + 1) % branches }))
+  }
+
+  return (
+    <>
+      <h2 className="font-display text-4xl tracking-wide">🦫 Topi Taupe</h2>
+      <p className="text-cream/85 mt-3 text-lg font-bold">
+        « Pour <span className="text-gold-300">{cost} pièces</span>, j'oriente les panneaux comme tu
+        veux ! » (tu as {player.coins} 🪙)
+      </p>
+      <div className="mt-4 flex flex-col items-center gap-2">
+        {SIGNPOST_FORK_IDS.map((forkId, i) => {
+          const fork = getSpace(forkId)
+          const dir = (directions[forkId] ?? 0) % fork.nextSpaces.length
+          const target = getSpace(fork.nextSpaces[dir])
+          return (
+            <button
+              key={forkId}
+              onClick={() => cycle(forkId)}
+              className="bg-night-800 hover:bg-night-700 flex w-80 items-center gap-3 rounded-xl px-4 py-2.5"
+            >
+              <span className="text-cream/60 text-sm font-extrabold">Panneau {i + 1}</span>
+              <span className="ml-auto text-xl">{arrowFor(target.x - fork.x, target.y - fork.y)}</span>
+              <span className="text-sm font-extrabold">
+                {SPACE_TYPE_LABELS[effectiveSpaceType(state, target.id)]}
+              </span>
+              <span className="text-cream/40 text-xs font-bold">↻</span>
+            </button>
+          )
+        })}
+      </div>
+      <div className="mt-5 flex justify-center gap-3">
+        <WideButton
+          disabled={player.coins < cost}
+          onClick={() => resolvePending({ kind: 'MOLE', pay: true, directions })}
+        >
+          🦫 PAYER {cost} 🪙 et réorienter
+        </WideButton>
+        <WideButton ghost onClick={() => resolvePending({ kind: 'MOLE', pay: false })}>
+          Non merci
+        </WideButton>
+      </div>
+    </>
+  )
 }
 
 // ---------- Petits composants ----------

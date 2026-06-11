@@ -1,9 +1,13 @@
 // ============================================================
-// board.ts — Le plateau Woody Woods sous forme de graphe.
-// Topologie et points d'intérêt calqués sur Docs/imgMap.png +
-// Docs/BoardMarioParty : boucle extérieure, boucles intérieures,
-// 3 embranchements à panneaux, arbre gentil (bas), arbre maudit
-// (haut), Boo au nord, 3 emplacements d'Étoile.
+// board.ts — Le plateau Woody Woods sous forme de graphe (~80
+// cases), retracé fidèlement depuis Docs/imgMap.png :
+//   - boucle extérieure complète (bas → ouest → nord → est)
+//   - bande centrale horizontale ouest → est
+//   - connecteur ouest (avec LE TROU) et connecteur centre
+//   - boucle intérieure sud-est (avec LE MUR sur le raccourci)
+//   - mini-boucle près du départ
+// Embranchements : 3 forks à PANNEAUX (la direction est dictée
+// par le panneau, règles réelles) + 2 forks LIBRES (choix).
 // Sens de circulation : anti-horaire (flèches de la map).
 // ============================================================
 
@@ -13,74 +17,105 @@ type SpaceSeed = Omit<BoardSpace, 'nextSpaces'> & { next: string[] }
 
 const SEEDS: SpaceSeed[] = [
   // ----- Boucle extérieure : bord bas, vers l'ouest -----
-  { id: 's01', type: 'START', x: 8.4, y: 4.9, next: ['s02'] },
-  { id: 's02', type: 'BLUE', x: 7.2, y: 5.3, next: ['s03'] },
-  { id: 's03', type: 'BLUE', x: 6.0, y: 5.5, next: ['s04'] },
-  { id: 's04', type: 'ITEM', x: 4.8, y: 5.5, next: ['s05'] },
-  { id: 's05', type: 'EVENT', event: 'SIGNPOST', x: 3.6, y: 5.4, next: ['s06'] },
-  // Fork A (panneau) : continuer à l'ouest ou plonger au centre
-  { id: 's06', type: 'BLUE', x: 2.4, y: 5.2, next: ['s07', 'i01'] },
-  { id: 's07', type: 'SIP_PLUS', x: 1.2, y: 5.3, next: ['s08'] },
-  { id: 's08', type: 'BLUE', x: 0.0, y: 5.5, next: ['s09'] },
-  { id: 's09', type: 'RED', x: -1.2, y: 5.5, next: ['s10'] },
-  { id: 's10', type: 'BLUE', x: -2.4, y: 5.3, next: ['s11'], starSpot: true },
-  { id: 's11', type: 'BLUE', x: -3.6, y: 5.0, next: ['s12'] },
-  { id: 's12', type: 'EVENT', event: 'TREE_GOOD', x: -4.8, y: 4.6, next: ['s13'] },
-  { id: 's13', type: 'BLUE', x: -5.9, y: 4.0, next: ['s14'] },
-  // ----- Bord ouest, vers le nord -----
-  { id: 's14', type: 'SIP_MINUS', x: -6.8, y: 3.2, next: ['s15'] },
-  { id: 's15', type: 'BLUE', x: -7.3, y: 2.2, next: ['s16'] },
-  { id: 's16', type: 'RED', x: -7.5, y: 1.1, next: ['s17'] },
-  { id: 's17', type: 'BLUE', x: -7.5, y: 0.0, next: ['s18'], starSpot: true },
-  { id: 's18', type: 'ITEM', x: -7.3, y: -1.1, next: ['s19'] },
-  { id: 's19', type: 'BLUE', x: -7.0, y: -2.2, next: ['s20'] },
-  { id: 's20', type: 'LUCKY', x: -6.6, y: -3.2, next: ['s21'] },
-  { id: 's21', type: 'EVENT', event: 'TREE_BAD', x: -6.1, y: -4.2, next: ['s22'] },
-  // ----- Bord nord, vers l'est -----
-  { id: 's22', type: 'BLUE', x: -5.0, y: -4.9, next: ['s23'] },
-  { id: 's23', type: 'BLUE', x: -3.8, y: -5.3, next: ['s24'] },
-  { id: 's24', type: 'EVENT', event: 'SIGNPOST', x: -2.6, y: -5.5, next: ['s25'] },
-  // Fork B (panneau) : continuer à l'est ou descendre au centre
-  { id: 's25', type: 'BLUE', x: -1.4, y: -5.5, next: ['s26', 'j01'] },
-  { id: 's26', type: 'SIP_PLUS', x: -0.2, y: -5.4, next: ['s27'] },
-  { id: 's27', type: 'VS', x: 1.0, y: -5.2, next: ['s28'] },
-  { id: 's28', type: 'BLUE', x: 2.2, y: -5.0, next: ['s29'], hasBoo: true },
-  { id: 's29', type: 'BLUE', x: 3.4, y: -4.8, next: ['s30'] },
-  { id: 's30', type: 'ITEM', x: 4.6, y: -4.6, next: ['s31'] },
-  { id: 's31', type: 'BLUE', x: 5.8, y: -4.3, next: ['s32'] },
-  // ----- Bord est, vers le sud -----
-  { id: 's32', type: 'RED', x: 6.6, y: -3.4, next: ['s33'] },
-  { id: 's33', type: 'BLUE', x: 7.1, y: -2.3, next: ['s34'] },
-  { id: 's34', type: 'BLUE', x: 7.4, y: -1.2, next: ['s35'], starSpot: true },
-  { id: 's35', type: 'LUCKY', x: 7.5, y: 0.0, next: ['s36'] },
-  { id: 's36', type: 'BLUE', x: 7.4, y: 1.2, next: ['s37'] },
-  { id: 's37', type: 'BAD_LUCK', x: 7.3, y: 2.4, next: ['s38'] },
-  { id: 's38', type: 'BLUE', x: 7.8, y: 3.6, next: ['s01'] },
+  { id: 'o01', type: 'START', x: 8.0, y: 6.3, next: ['o02'] },
+  { id: 'o02', type: 'BLUE', x: 6.9, y: 6.5, next: ['o03'] },
+  // Fork LIBRE : mini-boucle du départ (raccourci vers le spot étoile sud-est)
+  { id: 'o03', type: 'BLUE', x: 5.8, y: 6.6, next: ['o04', 'q01'] },
+  { id: 'o04', type: 'BLUE', x: 4.7, y: 6.6, next: ['o05'] },
+  { id: 'o05', type: 'ITEM', x: 3.6, y: 6.5, next: ['o06'] },
+  { id: 'o06', type: 'SIP_PLUS', x: 2.5, y: 6.4, next: ['o07'] },
+  { id: 'o07', type: 'BLUE', x: 1.4, y: 6.4, next: ['o08'] },
+  { id: 'o08', type: 'EVENT', event: 'SIGNPOST', x: 0.3, y: 6.4, next: ['o09'] },
+  // Fork à PANNEAU n°1 : continuer à l'ouest ou monter au centre
+  { id: 'o09', type: 'BLUE', x: -0.8, y: 6.3, next: ['o10', 'c01'] },
+  { id: 'o10', type: 'RED', x: -1.9, y: 6.2, next: ['o11'] },
+  { id: 'o11', type: 'BLUE', x: -3.0, y: 6.0, next: ['o12'] },
+  { id: 'o12', type: 'BLUE', x: -4.1, y: 5.6, next: ['o13'], starSpot: true },
+  { id: 'o13', type: 'BLUE', x: -5.1, y: 5.0, next: ['o14'] },
+  { id: 'o14', type: 'EVENT', event: 'TREE_GOOD', x: -5.9, y: 4.2, next: ['o15'] },
+  { id: 'o15', type: 'SIP_MINUS', x: -6.5, y: 3.3, next: ['o16'] },
+  { id: 'o16', type: 'BLUE', x: -6.9, y: 2.3, next: ['o17'] },
+  { id: 'o17', type: 'RED', x: -7.2, y: 1.3, next: ['o18'] },
+  { id: 'o18', type: 'EVENT', event: 'SIGNPOST', x: -7.4, y: 0.2, next: ['o19'] },
+  // Fork à PANNEAU n°2 : continuer au nord ou bifurquer dans la bande centrale
+  { id: 'o19', type: 'BLUE', x: -7.4, y: -0.9, next: ['o20', 'm01'] },
+  { id: 'o20', type: 'ITEM', x: -7.2, y: -2.0, next: ['o21'] },
+  { id: 'o21', type: 'BLUE', x: -7.0, y: -3.0, next: ['o22'] },
+  { id: 'o22', type: 'LUCKY', x: -6.6, y: -4.0, next: ['o23'] },
+  { id: 'o23', type: 'EVENT', event: 'TREE_BAD', x: -6.0, y: -5.0, next: ['o24'] },
+  { id: 'o24', type: 'BLUE', x: -5.0, y: -5.7, next: ['o25'] },
+  // Topi Taupe (doc : en haut du plateau, réoriente les panneaux contre des pièces)
+  { id: 'o25', type: 'BLUE', x: -3.9, y: -6.1, next: ['o26'], hasMole: true },
+  { id: 'o26', type: 'RED', x: -2.8, y: -6.3, next: ['o27'] },
+  { id: 'o27', type: 'ITEM', x: -1.7, y: -6.4, next: ['o28'] },
+  { id: 'o28', type: 'BLUE', x: -0.6, y: -6.4, next: ['o29'] },
+  { id: 'o29', type: 'VS', x: 0.5, y: -6.3, next: ['o30'] },
+  { id: 'o30', type: 'BLUE', x: 1.6, y: -6.2, next: ['o31'], hasBoo: true },
+  { id: 'o31', type: 'EVENT', event: 'SIGNPOST', x: 2.7, y: -6.1, next: ['o32'] },
+  // Fork à PANNEAU n°3 : continuer à l'est ou plonger vers la bande centrale
+  { id: 'o32', type: 'BLUE', x: 3.8, y: -6.0, next: ['o33', 'c11'] },
+  { id: 'o33', type: 'ITEM', x: 4.9, y: -5.8, next: ['o34'] },
+  { id: 'o34', type: 'BLUE', x: 6.0, y: -5.6, next: ['o35'] },
+  { id: 'o35', type: 'BLUE', x: 7.0, y: -5.2, next: ['o36'] },
+  { id: 'o36', type: 'RED', x: 7.8, y: -4.5, next: ['o37'] },
+  { id: 'o37', type: 'BLUE', x: 8.3, y: -3.6, next: ['o38'] },
+  { id: 'o38', type: 'BLUE', x: 8.6, y: -2.6, next: ['o39'], starSpot: true },
+  { id: 'o39', type: 'LUCKY', x: 8.8, y: -1.6, next: ['o40'] },
+  { id: 'o40', type: 'BLUE', x: 8.9, y: -0.6, next: ['o41'] },
+  { id: 'o41', type: 'ITEM', x: 8.9, y: 0.4, next: ['o42'] },
+  { id: 'o42', type: 'BLUE', x: 8.8, y: 1.4, next: ['o43'] },
+  { id: 'o43', type: 'BAD_LUCK', x: 8.7, y: 2.4, next: ['o44'] },
+  { id: 'o44', type: 'BLUE', x: 8.6, y: 3.4, next: ['o45'] },
+  { id: 'o45', type: 'BLUE', x: 8.4, y: 4.4, next: ['o46'] },
+  { id: 'o46', type: 'SIP_PLUS', x: 8.2, y: 5.4, next: ['o01'] },
 
-  // ----- Branche intérieure depuis le fork A (remonte au nord) -----
-  { id: 'i01', type: 'BLUE', x: 2.5, y: 3.9, next: ['i02'] },
-  { id: 'i02', type: 'EVENT', event: 'SIGNPOST', x: 2.7, y: 2.7, next: ['i03'] },
-  // Fork C (panneau) : vers le centre-ouest ou rejoindre le bord est
-  { id: 'i03', type: 'BLUE', x: 2.9, y: 1.5, next: ['i04', 'r01'] },
-  { id: 'i04', type: 'SIP_MINUS', x: 1.7, y: 0.9, next: ['i05'] },
-  { id: 'i05', type: 'VS', x: 0.5, y: 0.5, next: ['i06'] },
-  { id: 'i06', type: 'BLUE', x: -0.7, y: 0.3, next: ['i07'] },
-  { id: 'i07', type: 'ITEM', x: -1.9, y: 0.1, next: ['i08'] },
-  { id: 'i08', type: 'BLUE', x: -3.1, y: -0.2, next: ['i09'] },
-  { id: 'i09', type: 'BLUE', x: -4.1, y: -1.0, next: ['i10'] },
-  { id: 'i10', type: 'RED', x: -4.6, y: -2.0, next: ['i11'] },
-  { id: 'i11', type: 'BLUE', x: -4.9, y: -3.1, next: ['s22'] },
+  // ----- Bande centrale, ouest → est -----
+  { id: 'm01', type: 'BLUE', x: -6.3, y: -1.0, next: ['m02'] },
+  { id: 'm02', type: 'BLUE', x: -5.2, y: -1.0, next: ['m03'], starSpot: true },
+  { id: 'm03', type: 'SIP_MINUS', x: -4.1, y: -1.0, next: ['m04'] },
+  { id: 'm04', type: 'BLUE', x: -3.0, y: -1.0, next: ['m05'] },
+  { id: 'm05', type: 'BLUE', x: -1.9, y: -1.0, next: ['m06'] },
+  { id: 'm06', type: 'VS', x: -0.8, y: -1.0, next: ['m07'] },
+  { id: 'm07', type: 'BLUE', x: 0.3, y: -1.0, next: ['m08'] },
+  { id: 'm08', type: 'BLUE', x: 1.4, y: -0.9, next: ['m09'] },
+  // Fork LIBRE : raccourci par la boucle intérieure (gardé par LE MUR)
+  { id: 'm09', type: 'BLUE', x: 2.5, y: -0.9, next: ['m10', 'l01'] },
+  { id: 'm10', type: 'RED', x: 3.6, y: -0.8, next: ['m11'] },
+  { id: 'm11', type: 'BLUE', x: 4.7, y: -0.7, next: ['m12'] },
+  { id: 'm12', type: 'VS', x: 5.8, y: -0.6, next: ['m13'] },
+  { id: 'm13', type: 'BLUE', x: 6.9, y: -0.4, next: ['m14'] },
+  { id: 'm14', type: 'BLUE', x: 7.9, y: 0.0, next: ['o41'] },
 
-  // ----- Descente centrale depuis le fork B -----
-  { id: 'j01', type: 'BLUE', x: -1.3, y: -4.2, next: ['j02'] },
-  { id: 'j02', type: 'RED', x: -1.1, y: -3.0, next: ['j03'] },
-  { id: 'j03', type: 'BLUE', x: -1.0, y: -1.8, next: ['j04'] },
-  { id: 'j04', type: 'BLUE', x: -0.8, y: -0.7, next: ['i06'] },
+  // ----- Connecteur ouest (fork panneau n°1 → bande centrale) -----
+  { id: 'c01', type: 'BLUE', x: -0.9, y: 5.2, next: ['c02'] },
+  { id: 'c02', type: 'RED', x: -1.0, y: 4.1, next: ['c03'] },
+  { id: 'c03', type: 'BLUE', x: -1.1, y: 3.0, next: ['c04'] },
+  // LE TROU : il faut un lancer suffisant pour en sortir
+  { id: 'c04', type: 'EVENT', event: 'PIT', x: -1.2, y: 1.9, next: ['c05'] },
+  { id: 'c05', type: 'BLUE', x: -1.3, y: 0.9, next: ['c06'] },
+  { id: 'c06', type: 'BLUE', x: -1.6, y: -0.1, next: ['m05'] },
 
-  // ----- Raccourci est depuis le fork C -----
-  { id: 'r01', type: 'BLUE', x: 4.1, y: 1.3, next: ['r02'] },
-  { id: 'r02', type: 'SIP_PLUS', x: 5.3, y: 1.0, next: ['r03'] },
-  { id: 'r03', type: 'VS', x: 6.4, y: 1.1, next: ['s36'] },
+  // ----- Connecteur centre (fork panneau n°3 → bande centrale) -----
+  { id: 'c11', type: 'BLUE', x: 3.6, y: -4.9, next: ['c12'] },
+  { id: 'c12', type: 'RED', x: 3.4, y: -3.8, next: ['c13'] },
+  { id: 'c13', type: 'SIP_MINUS', x: 3.2, y: -2.8, next: ['c14'] },
+  { id: 'c14', type: 'BLUE', x: 2.4, y: -2.0, next: ['c15'] },
+  { id: 'c15', type: 'BLUE', x: 1.2, y: -1.6, next: ['m07'] },
+
+  // ----- Boucle intérieure sud-est (raccourci muré) -----
+  { id: 'l01', type: 'BLUE', x: 2.6, y: 0.2, next: ['l02'] },
+  // LE MUR : casse à 6, la valeur requise baisse de 1 à chaque échec
+  { id: 'l02', type: 'BLUE', x: 2.7, y: 1.3, next: ['l03'], wall: true },
+  { id: 'l03', type: 'ITEM', x: 3.3, y: 2.2, next: ['l04'] },
+  { id: 'l04', type: 'BLUE', x: 4.1, y: 3.0, next: ['l05'] },
+  { id: 'l05', type: 'LUCKY', x: 4.9, y: 3.8, next: ['l06'] },
+  { id: 'l06', type: 'BLUE', x: 5.8, y: 4.4, next: ['l07'] },
+  { id: 'l07', type: 'SIP_PLUS', x: 6.8, y: 4.7, next: ['l08'] },
+  { id: 'l08', type: 'BLUE', x: 7.7, y: 4.6, next: ['o45'] },
+
+  // ----- Mini-boucle du départ -----
+  { id: 'q01', type: 'BLUE', x: 5.5, y: 5.7, next: ['q02'] },
+  { id: 'q02', type: 'BLUE', x: 4.9, y: 4.8, next: ['l06'], starSpot: true },
 ]
 
 /** Le plateau, indexé par id de case. */
@@ -106,10 +141,25 @@ export const PREV: Record<string, string[]> = (() => {
 /** Emplacements candidats de l'Étoile (points jaunes de la map). */
 export const STAR_SPOTS: string[] = SEEDS.filter((s) => s.starSpot).map((s) => s.id)
 
-/** Cases d'embranchement (plusieurs sorties). */
+/** Toutes les cases d'embranchement (plusieurs sorties). */
 export const FORK_IDS: string[] = SEEDS.filter((s) => s.next.length > 1).map((s) => s.id)
 
-export const START_SPACE_ID = 's01'
+/**
+ * Forks gouvernés par un PANNEAU (la case EVENT/SIGNPOST juste avant) :
+ * la direction y est dictée par le panneau — règles réelles de Woody Woods.
+ * Les autres forks restent au libre choix du joueur.
+ */
+export const SIGNPOST_FORK_IDS: string[] = SEEDS.filter((s) => s.event === 'SIGNPOST').map(
+  (s) => s.next[0],
+)
+
+/** Cases portant un mur destructible. */
+export const WALL_SPACE_IDS: string[] = SEEDS.filter((s) => s.wall).map((s) => s.id)
+
+/** Case occupée par Topi Taupe. */
+export const MOLE_SPACE_ID: string | null = SEEDS.find((s) => s.hasMole)?.id ?? null
+
+export const START_SPACE_ID = 'o01'
 
 export function getSpace(id: string): BoardSpace {
   const space = BOARD[id]

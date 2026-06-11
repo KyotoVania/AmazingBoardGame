@@ -14,6 +14,7 @@ import type {
   ItemDef,
   ItemId,
   LobbyPlayerConfig,
+  MinigameCategory,
   MinigameTable,
   RewardDiceId,
 } from './types'
@@ -41,6 +42,14 @@ export const TREE_BAD_BACK_MAX = 3
 export const BOO_STEAL_COINS = 10 // [ADAPTATION] Boo vole des pièces gratuitement
 export const BOO_STAR_COST = 50 // doc Superstars : "a Star for 50 Coins"
 
+// Topi Taupe (doc : réoriente les panneaux, "the cost seems to be random")
+export const MOLE_COST_MIN = 3 // [ADAPTATION]
+export const MOLE_COST_MAX = 10 // [ADAPTATION]
+
+// Événements spéciaux custom
+export const PIT_ESCAPE_MIN = 4 // [ADAPTATION] lancer minimum pour sortir du trou
+export const WALL_INITIAL_STRENGTH = 6 // demandé : commence à 6, -1 par échec
+
 // Cases Chance / Poisse (wiki SMP : gagner/perdre items ou pièces)
 export const LUCKY_COINS = [5, 10] as const
 export const BAD_LUCK_COINS = [5, 10] as const
@@ -55,19 +64,35 @@ export const HIDDEN_BLOCK_STAR_CHANCE = 0.2 // [ADAPTATION]
 export const HIDDEN_BLOCK_COINS = 10 // [ADAPTATION]
 
 // ---------- Récompenses du podium (cahier des charges custom) ----------
+// Le dé gagné est un BONUS : une 3e option de lancer, conservée
+// jusqu'à utilisation (pas un remplacement du dé normal/perso).
+// Le layout du podium s'adapte à la catégorie du minijeu joué.
 
-export interface PodiumReward {
-  dice: RewardDiceId | null // null = dé normal
-  sips: number
+export interface PodiumSlotDef {
   label: string
+  /** Nombre de joueurs à placer dans cet emplacement. */
+  count: number
+  dice: RewardDiceId | null // null = pas de dé bonus
+  sips: number // gorgées bues par CHAQUE joueur du groupe
 }
 
-export const PODIUM_REWARDS: PodiumReward[] = [
-  { dice: 'GOLD', sips: 0, label: 'Dé Or (4-10) · 0 gorgée' },
-  { dice: 'SILVER', sips: 1, label: 'Dé Argent (3-8) · 1 gorgée' },
-  { dice: null, sips: 2, label: 'Dé Normal (1-6) · 2 gorgées' },
-  { dice: 'CURSED', sips: 3, label: 'Dé Maudit (1-3) · 3 gorgées' },
-]
+export const PODIUM_LAYOUTS: Record<MinigameCategory, PodiumSlotDef[]> = {
+  FFA: [
+    { label: '1er', count: 1, dice: 'GOLD', sips: 0 },
+    { label: '2e', count: 1, dice: 'SILVER', sips: 1 },
+    { label: '3e', count: 1, dice: null, sips: 2 },
+    { label: '4e', count: 1, dice: 'CURSED', sips: 3 },
+  ],
+  '2v2': [
+    { label: 'Gagnants', count: 2, dice: 'GOLD', sips: 0 },
+    { label: 'Perdants', count: 2, dice: 'CURSED', sips: 2 },
+  ],
+  '1v1': [
+    { label: 'Vainqueur', count: 1, dice: 'GOLD', sips: 0 },
+    { label: 'Perdant', count: 1, dice: 'CURSED', sips: 3 },
+    { label: 'Spectateurs', count: 2, dice: null, sips: 0 },
+  ],
+}
 
 // ---------- Personnages (wiki SMP : 20 jouables) ----------
 

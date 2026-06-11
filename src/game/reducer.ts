@@ -19,7 +19,10 @@ import {
   MAX_INVENTORY,
   MINIGAME_CATEGORIES,
   MINIGAMES,
-  PODIUM_REWARDS,
+  MOLE_COST_MAX,
+  MOLE_COST_MIN,
+  PIT_ESCAPE_MIN,
+  PODIUM_LAYOUTS,
   RED_COINS,
   SIP_MINUS_AMOUNT,
   SIP_PLUS_AMOUNT,
@@ -31,12 +34,22 @@ import {
   TREE_COIN_FRUIT,
   VS_SPLIT,
   VS_WAGERS,
+  WALL_INITIAL_STRENGTH,
 } from './constants'
-import { BOARD, FORK_IDS, PREV, STAR_SPOTS, START_SPACE_ID, getSpace } from './board'
+import {
+  BOARD,
+  PREV,
+  SIGNPOST_FORK_IDS,
+  STAR_SPOTS,
+  START_SPACE_ID,
+  WALL_SPACE_IDS,
+  getSpace,
+} from './board'
 import { pick, rand, randInt } from './rng'
 import type {
   BoardSpace,
   DiceBlockId,
+  FxEvent,
   GameAction,
   GameState,
   LogEntry,
@@ -61,12 +74,14 @@ export function createInitialState(): GameState {
     starSpaceId: STAR_SPOTS[0],
     vsConvertedIds: [],
     signposts: {},
+    walls: {},
     itemUsedThisTurn: false,
     rollBonus: 0,
     dice: null,
     movement: null,
     pending: null,
     minigame: null,
+    fx: null,
     forcedRoll: null,
     log: [],
     logSeq: 0,
@@ -114,21 +129,33 @@ function addCoins(p: Player, delta: number): void {
   p.coins = Math.max(0, p.coins + delta)
 }
 
+function setFx(s: GameState, kind: FxEvent['kind'], from: Player, to: Player, amount?: number): void {
+  s.fx = {
+    id: s.logSeq++,
+    kind,
+    amount,
+    fromName: from.name,
+    toName: to.name,
+    fromColor: from.color,
+    toColor: to.color,
+  }
+}
+
+/** Re-tire la direction dictée par chaque panneau (à chaque manche, règle réelle). */
 function rerollSignposts(s: GameState): void {
-  for (const forkId of FORK_IDS) {
+  for (const forkId of SIGNPOST_FORK_IDS) {
     s.signposts[forkId] = randInt(0, getSpace(forkId).nextSpaces.length - 1)
   }
 }
 
+/** Reconstruit les murs à pleine solidité ([ADAPTATION] : à chaque manche). */
+function resetWalls(s: GameState): void {
+  for (const id of WALL_SPACE_IDS) s.walls[id] = WALL_INITIAL_STRENGTH
+}
+
 /** Prépare un lancer : face résolue AVANT l'animation 3D. */
-function prepareRoll(s: GameState, requestedBlockId: DiceBlockId): void {
+function prepareRoll(s: GameState, blockId: DiceBlockId): void {
   const p = current(s)
-  let blockId = requestedBlockId
-  // Le dé de récompense du podium est imposé pour ce lancer.
-  if (p.rewardDice) {
-    blockId = p.rewardDice
-    p.rewardDice = null
-  }
   const block = DICE_BLOCKS[blockId]
   let faceIndex: number
   let steps: number
@@ -176,7 +203,10 @@ function prepareRoll(s: GameState, requestedBlockId: DiceBlockId): void {
   s.phase = 'ROLLING'
 }
 
-/** Calcule le prochain saut, ou ouvre le choix d'embranchement. */
+/**
+ * Calcule le prochain saut. Aux forks à PANNEAU, la direction est
+ * dictée (règle réelle de Woody Woods) ; aux forks libres, le joueur choisit.
+ */
 function advanceMovement(s: GameState): void {
   const p = current(s)
   const m = s.movement
@@ -187,6 +217,13 @@ function advanceMovement(s: GameState): void {
     return
   }
   if (!m.backward && candidates.length > 1) {
+    const dictated = s.signposts[p.currentSpaceId]
+    if (dictated !== undefined) {
+      m.hopTo = candidates[dictated % candidates.length]
+      s.phase = 'MOVING'
+      log(s, `🪧 Le panneau dirige ${p.name} !`, 'NEUTRAL')
+      return
+    }
     m.hopTo = null
     s.phase = 'FORK_CHOICE'
     return
@@ -313,12 +350,24 @@ function resolveEvent(s: GameState, space: BoardSpace, wasBackward: boolean): vo
       break
     }
     case 'SIGNPOST': {
-      // Doc Woody Woods : atterrir devant un panneau le fait pivoter.
+      // Doc Woody Woods : atterrir devant un panneau le fait pivoter
+      // (il changera de toute façon encore au début de la manche suivante).
       const forkId = space.nextSpaces[0]
       const branches = getSpace(forkId).nextSpaces.length
       s.signposts[forkId] = ((s.signposts[forkId] ?? 0) + 1) % branches
-      log(s, 'Le panneau indicateur pivote !', 'NEUTRAL')
-      popup(s, '🪧 Panneau', 'Le panneau pivote ! La direction conseillée vient de changer.', 'NEUTRAL')
+      log(s, 'Le panneau voisin pivote !', 'NEUTRAL')
+      popup(s, '🪧 Panneau', 'Le panneau pivote ! La direction du prochain embranchement vient de changer.', 'NEUTRAL')
+      break
+    }
+    case 'PIT': {
+      p.trapped = true
+      log(s, `🕳️ ${p.name} tombe dans le trou !`, 'BAD')
+      popup(
+        s,
+        '🕳️ LE TROU',
+        `Tu tombes dedans ! Il faudra un lancer total ≥ ${PIT_ESCAPE_MIN} pour en sortir, sinon tu restes coincé.`,
+        'BAD',
+      )
       break
     }
     default:
@@ -367,9 +416,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         sipsGiven: 0,
         rewardDice: null,
         poisoned: false,
+        trapped: false,
       }))
       fresh.starSpaceId = pick(STAR_SPOTS)
       rerollSignposts(fresh)
+      resetWalls(fresh)
       fresh.phase = 'TURN_START'
       fresh.logSeq = s.logSeq
       log(fresh, `La partie commence ! ${fresh.players[0].name} ouvre le bal.`, 'SYSTEM')
@@ -416,6 +467,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           const amount = Math.min(randInt(5, 10), target!.coins)
           target!.coins -= amount
           p.coins += amount
+          setFx(s, 'STEAL_COINS', target!, p, amount)
           log(s, `${p.name} vole ${amount} pièces à ${target!.name} (Coinado)`, 'GOOD')
           popup(s, '🌪️ Coinado', `La tornade arrache ${amount} pièces à ${target!.name} !`, 'GOOD')
           break
@@ -432,6 +484,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         case 'GOLDEN_PIPE': {
           const before = PREV[s.starSpaceId][0] ?? s.starSpaceId
           p.currentSpaceId = before
+          p.trapped = false
           log(s, `${p.name} surgit du tuyau doré près de l'Étoile`, 'GOOD')
           popup(s, '🪈 Tuyau doré', "Te voilà téléporté juste avant l'Étoile !", 'GOOD')
           break
@@ -456,9 +509,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'ROLL_DICE': {
       if (s.phase !== 'TURN_START') return state
       const p = current(s)
+      // le dé de récompense est un BONUS optionnel, pas un remplacement
       const allowed: DiceBlockId[] = ['NORMAL', p.character]
       if (p.rewardDice) allowed.push(p.rewardDice)
       if (!allowed.includes(action.blockId)) return state
+      if (p.rewardDice && action.blockId === p.rewardDice) p.rewardDice = null
       prepareRoll(s, action.blockId)
       return s
     }
@@ -481,6 +536,26 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         s.phase = 'TURN_END'
         return s
       }
+      // Le trou : il faut un lancer suffisant pour s'en extirper
+      if (p.trapped) {
+        if (d.steps < PIT_ESCAPE_MIN) {
+          log(s, `🕳️ ${p.name} reste coincé dans le trou (${d.steps} < ${PIT_ESCAPE_MIN})`, 'BAD')
+          s.phase = 'SPACE_ACTION'
+          popup(
+            s,
+            '🕳️ Toujours coincé !',
+            `Il fallait ≥ ${PIT_ESCAPE_MIN} et tu as fait ${d.steps}… Tu restes dans le trou.`,
+            'BAD',
+          )
+          return s
+        }
+        p.trapped = false
+        s.movement = { remaining: d.steps, total: d.steps, hopTo: null, backward: false }
+        s.phase = 'SPACE_ACTION'
+        log(s, `💪 ${p.name} s'extirpe du trou avec un ${d.steps} !`, 'GOOD')
+        popup(s, '💪 LIBÉRÉ !', `Un ${d.steps} ! Tu t'extirpes du trou et tu avances.`, 'GOOD')
+        return s
+      }
       s.movement = { remaining: d.steps, total: d.steps, hopTo: null, backward: false }
       advanceMovement(s)
       return s
@@ -495,14 +570,47 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       m.hopTo = null
       m.remaining -= 1
       if (!m.backward) {
+        const arrived = getSpace(p.currentSpaceId)
+        // Le mur : tentative basée sur le lancer du tour
+        const wallStrength = s.walls[p.currentSpaceId] ?? 0
+        if (arrived.wall && wallStrength > 0) {
+          const roll = s.dice?.steps ?? 0
+          s.phase = 'PASS_EVENT'
+          if (roll >= wallStrength) {
+            s.walls[p.currentSpaceId] = 0
+            log(s, `💥 ${p.name} CASSE le mur (lancer ${roll} ≥ ${wallStrength}) !`, 'GOOD')
+            popup(
+              s,
+              '💥 MUR CASSÉ !',
+              `Ton lancer de ${roll} pulvérise le mur (il fallait ≥ ${wallStrength}) ! La voie est libre pour tout le monde.`,
+              'GOOD',
+            )
+          } else {
+            s.walls[p.currentSpaceId] = wallStrength - 1
+            m.remaining = 0
+            log(s, `🧱 ${p.name} bute sur le mur (${roll} < ${wallStrength}) — il s'effrite : ${wallStrength - 1}`, 'BAD')
+            popup(
+              s,
+              '🧱 BLOQUÉ !',
+              `Le mur tient (il fallait ≥ ${wallStrength}, lancer : ${roll}). Il s'effrite : prochaine tentative à ${wallStrength - 1}.`,
+              'BAD',
+            )
+          }
+          return s
+        }
         if (p.currentSpaceId === s.starSpaceId) {
           s.phase = 'PASS_EVENT'
           s.pending = { kind: 'STAR_PROMPT' }
           return s
         }
-        if (getSpace(p.currentSpaceId).hasBoo) {
+        if (arrived.hasBoo) {
           s.phase = 'PASS_EVENT'
           s.pending = { kind: 'BOO_PROMPT' }
+          return s
+        }
+        if (arrived.hasMole) {
+          s.phase = 'PASS_EVENT'
+          s.pending = { kind: 'MOLE_PROMPT', cost: randInt(MOLE_COST_MIN, MOLE_COST_MAX) }
           return s
         }
       }
@@ -582,11 +690,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             const amount = Math.min(BOO_STEAL_COINS, target.coins)
             target.coins -= amount
             p.coins += amount
+            setFx(s, 'STEAL_COINS', target, p, amount)
             log(s, `Boo vole ${amount} pièces à ${target.name} pour ${p.name} !`, 'GOOD')
             popup(s, '👻 Boo', `Boo rapporte ${amount} pièces volées à ${target.name} !`, 'GOOD')
           } else if (target.stars > 0) {
             target.stars -= 1
             p.stars += 1
+            setFx(s, 'STEAL_STAR', target, p)
             log(s, `Boo vole une ÉTOILE à ${target.name} pour ${p.name} !!`, 'GOOD')
             popup(s, '👻 Boo', `Boo rapporte une ÉTOILE volée à ${target.name} !`, 'GOOD')
           } else {
@@ -617,9 +727,28 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             pot += wager
           }
           s.vsConvertedIds.push(p.currentSpaceId)
-          s.minigame = { context: 'VS', pot, category: 'FFA', title: null, ranking: null }
+          s.minigame = { context: 'VS', pot, category: 'FFA', title: null, groups: null }
           s.phase = 'MINIGAME_TITLE'
           log(s, `Case VS : ${pot} pièces dans le pot !`, 'SYSTEM')
+          return s
+        }
+        case 'MOLE': {
+          const cost = pending.kind === 'MOLE_PROMPT' ? pending.cost : MOLE_COST_MIN
+          if (choice.pay && p.coins >= cost) {
+            addCoins(p, -cost)
+            if (choice.directions) {
+              for (const [forkId, dir] of Object.entries(choice.directions)) {
+                if (SIGNPOST_FORK_IDS.includes(forkId)) {
+                  const branches = getSpace(forkId).nextSpaces.length
+                  s.signposts[forkId] = ((dir % branches) + branches) % branches
+                }
+              }
+            }
+            log(s, `🦫 ${p.name} paie ${cost} pièces à Topi Taupe : panneaux réorientés !`, 'NEUTRAL')
+            popup(s, '🦫 Topi Taupe', 'Marché conclu ! Les panneaux pointent désormais où tu l’as décidé.', 'GOOD')
+          } else {
+            continueOrLand(s)
+          }
           return s
         }
       }
@@ -639,7 +768,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         s.phase = 'TURN_START'
         log(s, `Au tour de ${current(s).name} !`, 'SYSTEM')
       } else {
-        s.minigame = { context: 'ROUND_END', pot: 0, category: null, title: null, ranking: null }
+        s.minigame = { context: 'ROUND_END', pot: 0, category: null, title: null, groups: null }
         s.phase = 'MINIGAME_CATEGORY'
         log(s, `Fin de la manche ${s.round} — place au MINIJEU !`, 'SYSTEM')
       }
@@ -676,30 +805,40 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'SET_PODIUM': {
-      if (s.phase !== 'PODIUM' || !s.minigame) return state
-      const ranking = action.ranking
-      if (ranking.length !== s.players.length) return state
-      if (new Set(ranking).size !== ranking.length) return state
-      s.minigame.ranking = ranking
+      if (s.phase !== 'PODIUM' || !s.minigame?.category) return state
+      const layout = PODIUM_LAYOUTS[s.minigame.category]
+      const groups = action.groups
+      if (groups.length !== layout.length) return state
+      if (groups.some((g, i) => g.length !== layout[i].count)) return state
+      const flat = groups.flat()
+      if (flat.length !== s.players.length || new Set(flat).size !== flat.length) return state
+      s.minigame.groups = groups
       if (s.minigame.context === 'VS') {
+        // VS = catégorie FFA : 4 groupes de 1, l'ordre est le rang
         const pot = s.minigame.pot
         let distributed = 0
-        ranking.forEach((pid, i) => {
-          const share = Math.floor(pot * VS_SPLIT[i])
+        flat.forEach((pid, i) => {
+          const share = Math.floor(pot * (VS_SPLIT[i] ?? 0))
           distributed += share
           if (share > 0) {
             playerById(s, pid).coins += share
             log(s, `${playerById(s, pid).name} récupère ${share} pièces du pot VS`, 'GOOD')
           }
         })
-        playerById(s, ranking[0]).coins += pot - distributed
+        playerById(s, flat[0]).coins += pot - distributed
       } else {
-        ranking.forEach((pid, i) => {
-          const reward = PODIUM_REWARDS[i]
-          const pl = playerById(s, pid)
-          pl.rewardDice = reward.dice
-          pl.sipsTaken += reward.sips
-          log(s, `${pl.name} (${i + 1}ᵉ) : ${reward.label}`, i < 2 ? 'GOOD' : 'BAD')
+        groups.forEach((group, i) => {
+          const slot = layout[i]
+          for (const pid of group) {
+            const pl = playerById(s, pid)
+            if (slot.dice) pl.rewardDice = slot.dice
+            pl.sipsTaken += slot.sips
+            log(
+              s,
+              `${pl.name} (${slot.label}) : ${slot.dice ? `${DICE_BLOCKS[slot.dice].label} en bonus` : 'pas de dé bonus'} · ${slot.sips} gorgée${slot.sips > 1 ? 's' : ''}`,
+              slot.sips === 0 ? 'GOOD' : 'BAD',
+            )
+          }
         })
       }
       s.phase = 'REWARDS'
@@ -722,9 +861,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       s.currentPlayerIndex = 0
       s.itemUsedThisTurn = false
       s.rollBonus = 0
-      rerollSignposts(s)
+      rerollSignposts(s) // règle réelle : les panneaux changent à chaque manche
+      resetWalls(s)
       s.phase = 'TURN_START'
-      log(s, `Manche ${s.round}/${s.maxRounds} — ${current(s).name} commence !`, 'SYSTEM')
+      log(s, `Manche ${s.round}/${s.maxRounds} — ${current(s).name} commence ! (panneaux re-tirés, murs reconstruits)`, 'SYSTEM')
       return s
     }
 
@@ -734,7 +874,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return fresh
     }
 
-    // ----- God Mode (DebugMode.md) -----
+    // ----- God Mode (DebugMode.md + extensions) -----
     case 'DEBUG_SET_MODE': {
       s.mode = action.mode
       return s
@@ -750,6 +890,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!BOARD[action.spaceId]) return state
       const pl = playerById(s, action.playerId)
       pl.currentSpaceId = action.spaceId
+      pl.trapped = false
       log(s, `[DEBUG] ${pl.name} téléporté sur ${action.spaceId}`, 'SYSTEM')
       return s
     }
@@ -767,7 +908,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       s.dice = null
       s.movement = null
       s.pending = null
-      s.minigame = { context: 'ROUND_END', pot: 0, category: null, title: null, ranking: null }
+      s.minigame = { context: 'ROUND_END', pot: 0, category: null, title: null, groups: null }
       s.phase = 'MINIGAME_CATEGORY'
       log(s, '[DEBUG] Phase minijeu déclenchée', 'SYSTEM')
       return s
@@ -781,6 +922,41 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (patch.coins !== undefined) pl.coins = Math.max(0, patch.coins)
       if (patch.stars !== undefined) pl.stars = Math.max(0, patch.stars)
       log(s, `[DEBUG] Stats de ${pl.name} modifiées`, 'SYSTEM')
+      return s
+    }
+
+    case 'DEBUG_SET_TURN': {
+      const idx = s.players.findIndex((pl) => pl.id === action.playerId)
+      if (idx < 0) return state
+      s.currentPlayerIndex = idx
+      s.dice = null
+      s.movement = null
+      s.pending = null
+      s.minigame = null
+      s.itemUsedThisTurn = false
+      s.rollBonus = 0
+      s.phase = 'TURN_START'
+      log(s, `[DEBUG] C'est maintenant au tour de ${s.players[idx].name}`, 'SYSTEM')
+      return s
+    }
+
+    case 'DEBUG_SET_WALL': {
+      if (!BOARD[action.spaceId]?.wall) return state
+      s.walls[action.spaceId] = Math.max(0, Math.round(action.strength))
+      log(s, `[DEBUG] Mur ${action.spaceId} réglé à ${s.walls[action.spaceId]}`, 'SYSTEM')
+      return s
+    }
+
+    case 'DEBUG_SET_TRAPPED': {
+      const pl = playerById(s, action.playerId)
+      pl.trapped = action.trapped
+      log(s, `[DEBUG] ${pl.name} ${action.trapped ? 'piégé dans le trou' : 'libéré du trou'}`, 'SYSTEM')
+      return s
+    }
+
+    case 'DEBUG_REROLL_SIGNPOSTS': {
+      rerollSignposts(s)
+      log(s, '[DEBUG] Panneaux re-tirés', 'SYSTEM')
       return s
     }
 

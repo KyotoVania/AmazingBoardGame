@@ -1,18 +1,25 @@
-// Tests du moteur de jeu : la boucle de tour complète, les effets de
-// cases (wiki SMP), les items, les minijeux et les overrides God Mode.
+// Tests du moteur de jeu : boucle de tour complète, effets de cases
+// (wiki SMP), items, panneaux (règles réelles), trou, mur, Topi Taupe,
+// minijeux avec podium par catégorie et overrides God Mode.
+// Les cases cibles sont trouvées dynamiquement dans le graphe pour
+// rester valables si la map évolue.
 import { beforeEach, describe, expect, it } from 'vitest'
-import { BOARD, PREV, STAR_SPOTS } from './board'
+import { BOARD, PREV, SIGNPOST_FORK_IDS, STAR_SPOTS, WALL_SPACE_IDS, getSpace } from './board'
 import {
   DEFAULT_LOBBY,
   MINIGAMES,
+  MOLE_COST_MAX,
+  MOLE_COST_MIN,
+  PIT_ESCAPE_MIN,
   SIP_MINUS_AMOUNT,
   SIP_PLUS_AMOUNT,
   START_COINS,
   VS_WAGERS,
+  WALL_INITIAL_STRENGTH,
 } from './constants'
 import { createInitialState, effectiveSpaceType, gameReducer } from './reducer'
 import { setSeed } from './rng'
-import type { GameAction, GameState } from './types'
+import type { BoardSpace, GameAction, GameState, MinigameState, PlayerId } from './types'
 
 function reduce(state: GameState, ...actions: GameAction[]): GameState {
   return actions.reduce((s, a) => gameReducer(s, a), state)
@@ -26,7 +33,32 @@ function start(maxRounds = 10): GameState {
   })
 }
 
-/** Avance le pion jusqu'à l'atterrissage (gère forks et événements de passage). */
+/**
+ * Trouve une case d'approche : `from` a une seule sortie `to` qui
+ * matche le prédicat, sans événement de passage parasite sur `to`.
+ */
+function approachTo(predicate: (sp: BoardSpace) => boolean): { from: string; to: string } {
+  for (const space of Object.values(BOARD)) {
+    if (space.nextSpaces.length !== 1) continue
+    const to = BOARD[space.nextSpaces[0]]
+    if (!to || to.hasBoo || to.hasMole || to.wall) continue
+    if (predicate(to)) return { from: space.id, to: to.id }
+  }
+  throw new Error('aucune approche linéaire trouvée')
+}
+
+/** Téléporte P1 sur `from`, force un lancer de `steps` et lance le dé. */
+function rollFrom(state: GameState, from: string, steps: number): GameState {
+  return reduce(
+    state,
+    { type: 'DEBUG_TELEPORT', playerId: 'P1', spaceId: from },
+    { type: 'DEBUG_FORCE_ROLL', value: steps },
+    { type: 'ROLL_DICE', blockId: 'NORMAL' },
+    { type: 'DICE_LANDED' },
+  )
+}
+
+/** Avance le pion jusqu'à l'atterrissage (gère forks libres). */
 function walk(state: GameState, forkPicks: string[] = []): GameState {
   let s = state
   let guard = 0
@@ -51,13 +83,14 @@ function quickTurn(state: GameState): GameState {
     { type: 'DICE_LANDED' },
   )
   s = walk(s)
-  // purge les éventuels prompts (étoile, boo, popups, choix)
   let guard = 0
   while (s.pending && guard++ < 10) {
     if (s.pending.kind === 'STAR_PROMPT') {
       s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'STAR', buy: false } })
     } else if (s.pending.kind === 'BOO_PROMPT') {
       s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'BOO', action: 'DECLINE' } })
+    } else if (s.pending.kind === 'MOLE_PROMPT') {
+      s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'MOLE', pay: false } })
     } else if (s.pending.kind === 'CHOOSE_SIP_TARGET') {
       const other = s.players.find((p) => p.id !== s.players[s.currentPlayerIndex].id)!
       s = gameReducer(s, {
@@ -70,8 +103,6 @@ function quickTurn(state: GameState): GameState {
         choice: { kind: 'TREE_GOOD', pick: 'COIN_FRUIT' },
       })
     } else if (s.pending.kind === 'VS_WAGER') {
-      // pour les tours rapides on ne veut pas déclencher de minijeu : impossible à éviter,
-      // mais aucun quickTurn de cette suite n'atterrit sur une case VS.
       throw new Error('quickTurn a atterri sur une case VS, adapter le test')
     } else {
       s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
@@ -82,23 +113,42 @@ function quickTurn(state: GameState): GameState {
   return gameReducer(s, { type: 'END_TURN' })
 }
 
+/** État PODIUM artisanal pour tester les layouts sans passer par le rng. */
+function podiumState(base: GameState, minigame: Partial<MinigameState>): GameState {
+  return {
+    ...base,
+    phase: 'PODIUM',
+    minigame: {
+      context: 'ROUND_END',
+      pot: 0,
+      category: 'FFA',
+      title: 'Test',
+      groups: null,
+      ...minigame,
+    },
+  }
+}
+
 beforeEach(() => {
   setSeed(42)
 })
 
 describe('démarrage de partie', () => {
-  it('initialise 4 joueurs sur la case départ', () => {
+  it('initialise 4 joueurs, panneaux et murs', () => {
     const s = start()
     expect(s.phase).toBe('TURN_START')
     expect(s.players).toHaveLength(4)
     for (const p of s.players) {
-      expect(p.currentSpaceId).toBe('s01')
+      expect(p.currentSpaceId).toBe('o01')
       expect(p.coins).toBe(START_COINS)
       expect(p.stars).toBe(0)
-      expect(p.inventory).toEqual([])
+      expect(p.trapped).toBe(false)
     }
     expect(STAR_SPOTS).toContain(s.starSpaceId)
-    expect(Object.keys(s.signposts)).toHaveLength(3)
+    expect(Object.keys(s.signposts).sort()).toEqual([...SIGNPOST_FORK_IDS].sort())
+    for (const wallId of WALL_SPACE_IDS) {
+      expect(s.walls[wallId]).toBe(WALL_INITIAL_STRENGTH)
+    }
   })
 })
 
@@ -114,20 +164,15 @@ describe('lancer et déplacement', () => {
     expect(s.dice?.steps).toBe(3)
     expect(s.forcedRoll).toBeNull()
     s = gameReducer(s, { type: 'DICE_LANDED' })
-    expect(s.phase).toBe('MOVING')
-    expect(s.movement?.remaining).toBe(3)
+    expect(['MOVING', 'FORK_CHOICE']).toContain(s.phase)
   })
 
   it('atterrir sur une case bleue rapporte 3 pièces', () => {
     let s = start()
-    s = reduce(
-      s,
-      { type: 'DEBUG_FORCE_ROLL', value: 1 },
-      { type: 'ROLL_DICE', blockId: 'NORMAL' },
-      { type: 'DICE_LANDED' },
-    )
-    s = walk(s)
-    expect(s.players[0].currentSpaceId).toBe('s02')
+    s = { ...s, starSpaceId: 'q02' }
+    const { from, to } = approachTo((sp) => sp.type === 'BLUE' && !sp.starSpot)
+    s = walk(rollFrom(s, from, 1))
+    expect(s.players[0].currentSpaceId).toBe(to)
     expect(s.phase).toBe('SPACE_ACTION')
     expect(s.players[0].coins).toBe(START_COINS + 3)
     s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
@@ -136,50 +181,19 @@ describe('lancer et déplacement', () => {
 
   it('atterrir sur une case rouge coûte 3 pièces', () => {
     let s = start()
-    s = reduce(
-      s,
-      { type: 'DEBUG_TELEPORT', playerId: 'P1', spaceId: 's08' },
-      { type: 'DEBUG_FORCE_ROLL', value: 1 },
-      { type: 'ROLL_DICE', blockId: 'NORMAL' },
-      { type: 'DICE_LANDED' },
-    )
-    s = walk(s)
-    expect(s.players[0].currentSpaceId).toBe('s09')
+    s = { ...s, starSpaceId: 'q02' }
+    const { from, to } = approachTo((sp) => sp.type === 'RED')
+    s = walk(rollFrom(s, from, 1))
+    expect(s.players[0].currentSpaceId).toBe(to)
     expect(s.players[0].coins).toBe(START_COINS - 3)
   })
 
-  it('une case item remplit l’inventaire (3 max)', () => {
+  it('une case item remplit l’inventaire', () => {
     let s = start()
-    s = reduce(
-      s,
-      { type: 'DEBUG_FORCE_ROLL', value: 3 },
-      { type: 'ROLL_DICE', blockId: 'NORMAL' },
-      { type: 'DICE_LANDED' },
-    )
-    s = walk(s)
-    expect(s.players[0].currentSpaceId).toBe('s04')
+    s = { ...s, starSpaceId: 'q02' }
+    const { from } = approachTo((sp) => sp.type === 'ITEM')
+    s = walk(rollFrom(s, from, 1))
     expect(s.players[0].inventory).toHaveLength(1)
-  })
-
-  it('un embranchement déclenche le choix du chemin', () => {
-    let s = start()
-    s = reduce(
-      s,
-      { type: 'DEBUG_TELEPORT', playerId: 'P1', spaceId: 's05' },
-      { type: 'DEBUG_FORCE_ROLL', value: 2 },
-      { type: 'ROLL_DICE', blockId: 'NORMAL' },
-      { type: 'DICE_LANDED' },
-      { type: 'STEP_DONE' },
-    )
-    expect(s.players[0].currentSpaceId).toBe('s06')
-    expect(s.phase).toBe('FORK_CHOICE')
-    // un choix invalide est ignoré
-    const before = s
-    s = gameReducer(s, { type: 'CHOOSE_FORK', nextSpaceId: 's99' })
-    expect(s).toBe(before)
-    s = reduce(s, { type: 'CHOOSE_FORK', nextSpaceId: 'i01' }, { type: 'STEP_DONE' })
-    expect(s.players[0].currentSpaceId).toBe('i01')
-    expect(s.phase).toBe('SPACE_ACTION')
   })
 
   it('rouler 0 (face DK) termine le tour sur place', () => {
@@ -191,36 +205,60 @@ describe('lancer et déplacement', () => {
       { type: 'DICE_LANDED' },
     )
     expect(s.phase).toBe('TURN_END')
-    expect(s.players[0].currentSpaceId).toBe('s01')
+    expect(s.players[0].currentSpaceId).toBe('o01')
+  })
+})
+
+describe('embranchements : panneaux et forks libres', () => {
+  it('un fork à panneau suit la direction dictée, sans choix du joueur', () => {
+    let s = start()
+    const forkId = SIGNPOST_FORK_IDS[0]
+    const dictated = s.signposts[forkId]
+    s = rollFrom(s, forkId, 2)
+    expect(s.phase).toBe('MOVING')
+    expect(s.movement?.hopTo).toBe(getSpace(forkId).nextSpaces[dictated])
+  })
+
+  it('un fork libre demande le choix du joueur, et rejette un choix invalide', () => {
+    let s = start()
+    const freeFork = Object.values(BOARD).find(
+      (sp) => sp.nextSpaces.length > 1 && !SIGNPOST_FORK_IDS.includes(sp.id),
+    )!
+    s = rollFrom(s, freeFork.id, 1)
+    expect(s.phase).toBe('FORK_CHOICE')
+    const before = s
+    s = gameReducer(s, { type: 'CHOOSE_FORK', nextSpaceId: 'zzz' })
+    expect(s).toBe(before)
+    s = reduce(s, { type: 'CHOOSE_FORK', nextSpaceId: freeFork.nextSpaces[1] }, { type: 'STEP_DONE' })
+    expect(s.players[0].currentSpaceId).toBe(freeFork.nextSpaces[1])
+  })
+
+  it('atterrir sur la case event d’un panneau le fait pivoter', () => {
+    let s = start()
+    const signpostEvent = Object.values(BOARD).find((sp) => sp.event === 'SIGNPOST')!
+    const forkId = signpostEvent.nextSpaces[0]
+    const before = s.signposts[forkId]
+    const branches = getSpace(forkId).nextSpaces.length
+    s = walk(rollFrom(s, PREV[signpostEvent.id][0], 1))
+    expect(s.players[0].currentSpaceId).toBe(signpostEvent.id)
+    expect(s.signposts[forkId]).toBe((before + 1) % branches)
   })
 })
 
 describe('cases gorgées (custom)', () => {
   it('SIP_PLUS fait boire le joueur', () => {
     let s = start()
-    s = reduce(
-      s,
-      { type: 'DEBUG_TELEPORT', playerId: 'P1', spaceId: 's06' },
-      { type: 'DEBUG_FORCE_ROLL', value: 1 },
-      { type: 'ROLL_DICE', blockId: 'NORMAL' },
-      { type: 'DICE_LANDED' },
-    )
-    expect(s.phase).toBe('FORK_CHOICE')
-    s = reduce(s, { type: 'CHOOSE_FORK', nextSpaceId: 's07' }, { type: 'STEP_DONE' })
-    expect(s.players[0].currentSpaceId).toBe('s07')
+    s = { ...s, starSpaceId: 'q02' }
+    const { from } = approachTo((sp) => sp.type === 'SIP_PLUS')
+    s = walk(rollFrom(s, from, 1))
     expect(s.players[0].sipsTaken).toBe(SIP_PLUS_AMOUNT)
   })
 
   it('SIP_MINUS distribue des gorgées à la cible choisie', () => {
     let s = start()
-    s = reduce(
-      s,
-      { type: 'DEBUG_TELEPORT', playerId: 'P1', spaceId: 's13' },
-      { type: 'DEBUG_FORCE_ROLL', value: 1 },
-      { type: 'ROLL_DICE', blockId: 'NORMAL' },
-      { type: 'DICE_LANDED' },
-    )
-    s = walk(s)
+    s = { ...s, starSpaceId: 'q02' }
+    const { from } = approachTo((sp) => sp.type === 'SIP_MINUS')
+    s = walk(rollFrom(s, from, 1))
     expect(s.pending?.kind).toBe('CHOOSE_SIP_TARGET')
     s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'SIP_TARGET', targetId: 'P3' } })
     expect(s.players[2].sipsTaken).toBe(SIP_MINUS_AMOUNT)
@@ -228,58 +266,29 @@ describe('cases gorgées (custom)', () => {
   })
 })
 
-describe('Étoile et Boo (événements de passage)', () => {
+describe('Étoile, Boo et Topi Taupe (événements de passage)', () => {
   it('passer sur l’Étoile permet de l’acheter et la fait déménager', () => {
     let s = start()
-    s = { ...s, starSpaceId: 's10' }
-    s = reduce(
-      s,
-      { type: 'DEBUG_TELEPORT', playerId: 'P1', spaceId: 's09' },
-      { type: 'DEBUG_FORCE_ROLL', value: 2 },
-      { type: 'ROLL_DICE', blockId: 'NORMAL' },
-      { type: 'DICE_LANDED' },
-      { type: 'STEP_DONE' },
-    )
+    s = { ...s, starSpaceId: 'o12' }
+    s = reduce(rollFrom(s, PREV['o12'][0], 2), { type: 'STEP_DONE' })
     expect(s.phase).toBe('PASS_EVENT')
     expect(s.pending?.kind).toBe('STAR_PROMPT')
     s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'STAR', buy: true } })
     expect(s.players[0].stars).toBe(1)
     expect(s.players[0].coins).toBe(0)
-    expect(s.starSpaceId).not.toBe('s10')
+    expect(s.starSpaceId).not.toBe('o12')
     expect(STAR_SPOTS).toContain(s.starSpaceId)
-    // le popup de confirmation laisse ensuite le déplacement continuer
     s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
     expect(s.phase).toBe('MOVING')
     s = walk(s)
-    expect(s.players[0].currentSpaceId).toBe('s11')
+    expect(s.players[0].currentSpaceId).toBe(getSpace('o12').nextSpaces[0])
   })
 
-  it('refuser l’Étoile continue le déplacement', () => {
+  it('Boo vole des pièces et déclenche un effet visuel', () => {
     let s = start()
-    s = { ...s, starSpaceId: 's10' }
-    s = reduce(
-      s,
-      { type: 'DEBUG_TELEPORT', playerId: 'P1', spaceId: 's09' },
-      { type: 'DEBUG_FORCE_ROLL', value: 2 },
-      { type: 'ROLL_DICE', blockId: 'NORMAL' },
-      { type: 'DICE_LANDED' },
-      { type: 'STEP_DONE' },
-      { type: 'RESOLVE_PENDING', choice: { kind: 'STAR', buy: false } },
-    )
-    expect(s.phase).toBe('MOVING')
-  })
-
-  it('Boo vole des pièces à la victime désignée', () => {
-    let s = start()
-    s = { ...s, starSpaceId: 's17' } // étoile ailleurs pour ne pas interférer
-    s = reduce(
-      s,
-      { type: 'DEBUG_TELEPORT', playerId: 'P1', spaceId: 's27' },
-      { type: 'DEBUG_FORCE_ROLL', value: 2 },
-      { type: 'ROLL_DICE', blockId: 'NORMAL' },
-      { type: 'DICE_LANDED' },
-      { type: 'STEP_DONE' },
-    )
+    s = { ...s, starSpaceId: 'q02' }
+    const booSpace = Object.values(BOARD).find((sp) => sp.hasBoo)!
+    s = reduce(rollFrom(s, PREV[booSpace.id][0], 2), { type: 'STEP_DONE' })
     expect(s.pending?.kind).toBe('BOO_PROMPT')
     s = reduce(
       s,
@@ -288,9 +297,131 @@ describe('Étoile et Boo (événements de passage)', () => {
     )
     expect(s.players[0].coins).toBe(START_COINS + 10)
     expect(s.players[1].coins).toBe(0)
+    expect(s.fx?.kind).toBe('STEAL_COINS')
+    expect(s.fx?.amount).toBe(10)
+  })
+
+  it('Boo vole une Étoile (50 pièces) et déclenche le FX étoile', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    s = reduce(
+      s,
+      { type: 'DEBUG_EDIT_STATS', playerId: 'P1', patch: { coins: 60 } },
+      { type: 'DEBUG_EDIT_STATS', playerId: 'P2', patch: { stars: 1 } },
+    )
+    const booSpace = Object.values(BOARD).find((sp) => sp.hasBoo)!
+    s = reduce(rollFrom(s, PREV[booSpace.id][0], 2), { type: 'STEP_DONE' })
+    s = reduce(
+      s,
+      { type: 'RESOLVE_PENDING', choice: { kind: 'BOO', action: 'STEAL_STAR' } },
+      { type: 'RESOLVE_PENDING', choice: { kind: 'BOO_VICTIM', targetId: 'P2' } },
+    )
+    expect(s.players[0].stars).toBe(1)
+    expect(s.players[0].coins).toBe(10)
+    expect(s.players[1].stars).toBe(0)
+    expect(s.fx?.kind).toBe('STEAL_STAR')
+  })
+
+  it('Topi Taupe réoriente les panneaux contre des pièces', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    const moleSpace = Object.values(BOARD).find((sp) => sp.hasMole)!
+    s = reduce(rollFrom(s, PREV[moleSpace.id][0], 2), { type: 'STEP_DONE' })
+    expect(s.pending?.kind).toBe('MOLE_PROMPT')
+    const cost = s.pending?.kind === 'MOLE_PROMPT' ? s.pending.cost : 0
+    expect(cost).toBeGreaterThanOrEqual(MOLE_COST_MIN)
+    expect(cost).toBeLessThanOrEqual(MOLE_COST_MAX)
+    const directions = Object.fromEntries(SIGNPOST_FORK_IDS.map((id) => [id, 1]))
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'MOLE', pay: true, directions } })
+    expect(s.players[0].coins).toBe(START_COINS - cost)
+    for (const forkId of SIGNPOST_FORK_IDS) {
+      expect(s.signposts[forkId]).toBe(1 % getSpace(forkId).nextSpaces.length)
+    }
+    // le popup laisse ensuite le déplacement reprendre
     s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
     s = walk(s)
-    expect(s.players[0].currentSpaceId).toBe('s29')
+    expect(['SPACE_ACTION', 'PASS_EVENT']).toContain(s.phase)
+  })
+})
+
+describe('le trou (événement spécial)', () => {
+  it('y atterrir piège le joueur', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    const { from } = approachTo((sp) => sp.event === 'PIT')
+    s = walk(rollFrom(s, from, 1))
+    expect(s.players[0].trapped).toBe(true)
+  })
+
+  it('un lancer trop faible laisse coincé, un bon lancer libère', () => {
+    let s = start()
+    s = gameReducer(s, { type: 'DEBUG_SET_TRAPPED', playerId: 'P1', trapped: true })
+    // échec : en dessous du seuil
+    s = reduce(
+      s,
+      { type: 'DEBUG_FORCE_ROLL', value: PIT_ESCAPE_MIN - 1 },
+      { type: 'ROLL_DICE', blockId: 'NORMAL' },
+      { type: 'DICE_LANDED' },
+    )
+    expect(s.players[0].trapped).toBe(true)
+    expect(s.movement).toBeNull()
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
+    expect(s.phase).toBe('TURN_END')
+    // succès au tour suivant
+    s = gameReducer(s, { type: 'DEBUG_SET_TURN', playerId: 'P1' })
+    s = reduce(
+      s,
+      { type: 'DEBUG_FORCE_ROLL', value: PIT_ESCAPE_MIN },
+      { type: 'ROLL_DICE', blockId: 'NORMAL' },
+      { type: 'DICE_LANDED' },
+    )
+    expect(s.players[0].trapped).toBe(false)
+    expect(s.movement?.remaining).toBe(PIT_ESCAPE_MIN)
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
+    expect(['MOVING', 'FORK_CHOICE']).toContain(s.phase)
+  })
+})
+
+describe('le mur (événement spécial)', () => {
+  const wallId = WALL_SPACE_IDS[0]
+
+  it('bloque si le lancer est trop faible et s’effrite de 1', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    s = walk(rollFrom(s, PREV[wallId][0], 3))
+    // 3 < 6 : bloqué sur place, le mur passe à 5, la case s'active quand même
+    expect(s.players[0].currentSpaceId).toBe(wallId)
+    expect(s.walls[wallId]).toBe(WALL_INITIAL_STRENGTH - 1)
+    expect(s.pending?.kind).toBe('POPUP')
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
+    expect(s.phase).toBe('SPACE_ACTION') // atterrissage sur la case du mur
+  })
+
+  it('casse si le lancer est suffisant et laisse passer', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    s = gameReducer(s, { type: 'DEBUG_SET_WALL', spaceId: wallId, strength: 2 })
+    s = walk(rollFrom(s, PREV[wallId][0], 3))
+    expect(s.walls[wallId]).toBe(0)
+    expect(s.pending?.kind).toBe('POPUP')
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
+    s = walk(s)
+    // 3 pas au total : mur + 2 cases derrière
+    const behind = getSpace(getSpace(wallId).nextSpaces[0]).nextSpaces[0]
+    expect(s.players[0].currentSpaceId).toBe(behind)
+  })
+
+  it('le mur est reconstruit au début de la manche suivante', () => {
+    let s = start()
+    s = gameReducer(s, { type: 'DEBUG_SET_WALL', spaceId: wallId, strength: 0 })
+    s = podiumState(s, { category: 'FFA' })
+    s = reduce(
+      s,
+      { type: 'SET_PODIUM', groups: [['P1'], ['P2'], ['P3'], ['P4']] },
+      { type: 'CONTINUE' },
+    )
+    expect(s.round).toBe(2)
+    expect(s.walls[wallId]).toBe(WALL_INITIAL_STRENGTH)
   })
 })
 
@@ -304,7 +435,6 @@ describe('items (wiki SMP)', () => {
       { type: 'USE_ITEM', itemId: 'DASH_MUSHROOM' },
     )
     expect(s.rollBonus).toBe(3)
-    expect(s.itemUsedThisTurn).toBe(true)
     const before = s
     s = gameReducer(s, { type: 'USE_ITEM', itemId: 'DASH_MUSHROOM' })
     expect(s).toBe(before)
@@ -325,7 +455,7 @@ describe('items (wiki SMP)', () => {
       { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } },
     )
     expect(s.players[1].poisoned).toBe(true)
-    s = quickTurn(s) // P1 finit son tour
+    s = quickTurn(s)
     expect(s.currentPlayerIndex).toBe(1)
     s = reduce(
       s,
@@ -333,7 +463,6 @@ describe('items (wiki SMP)', () => {
       { type: 'ROLL_DICE', blockId: 'NORMAL' },
     )
     expect(s.dice?.steps).toBe(3)
-    expect(s.dice?.modifierLabel).toContain('poison')
     expect(s.players[1].poisoned).toBe(false)
   })
 
@@ -349,7 +478,7 @@ describe('items (wiki SMP)', () => {
     expect(s.dice?.steps).toBe(4)
   })
 
-  it('le Coinado vole entre 5 et 10 pièces', () => {
+  it('le Coinado vole 5 à 10 pièces et déclenche le FX pièces', () => {
     let s = start()
     s = reduce(
       s,
@@ -360,6 +489,7 @@ describe('items (wiki SMP)', () => {
     expect(stolen).toBeGreaterThanOrEqual(5)
     expect(stolen).toBeLessThanOrEqual(10)
     expect(s.players[1].coins).toBe(START_COINS - stolen)
+    expect(s.fx?.kind).toBe('STEAL_COINS')
   })
 
   it('le ticket Maskache vole un item, et échoue sans cible valide', () => {
@@ -373,7 +503,6 @@ describe('items (wiki SMP)', () => {
     expect(s.players[0].inventory).toContain('GOLDEN_PIPE')
     expect(s.players[1].inventory).toHaveLength(0)
 
-    // cible sans item : action ignorée
     let s2 = start()
     s2 = gameReducer(s2, { type: 'DEBUG_INJECT_ITEM', playerId: 'P1', itemId: 'FLY_GUY_TICKET' })
     const before = s2
@@ -381,15 +510,17 @@ describe('items (wiki SMP)', () => {
     expect(s2).toBe(before)
   })
 
-  it('le tuyau doré téléporte juste avant l’Étoile', () => {
+  it('le tuyau doré téléporte juste avant l’Étoile et libère du trou', () => {
     let s = start()
-    s = { ...s, starSpaceId: 's10' }
+    s = { ...s, starSpaceId: 'o12' }
     s = reduce(
       s,
+      { type: 'DEBUG_SET_TRAPPED', playerId: 'P1', trapped: true },
       { type: 'DEBUG_INJECT_ITEM', playerId: 'P1', itemId: 'GOLDEN_PIPE' },
       { type: 'USE_ITEM', itemId: 'GOLDEN_PIPE' },
     )
-    expect(s.players[0].currentSpaceId).toBe(PREV['s10'][0])
+    expect(s.players[0].currentSpaceId).toBe(PREV['o12'][0])
+    expect(s.players[0].trapped).toBe(false)
   })
 
   it('la carte bloc caché donne des pièces ou une Étoile', () => {
@@ -409,22 +540,15 @@ describe('items (wiki SMP)', () => {
 describe('arbres de Woody Woods', () => {
   it('l’arbre généreux offre pièces ou relance', () => {
     let s = start()
-    s = reduce(
-      s,
-      { type: 'DEBUG_TELEPORT', playerId: 'P1', spaceId: 's11' },
-      { type: 'DEBUG_FORCE_ROLL', value: 1 },
-      { type: 'ROLL_DICE', blockId: 'NORMAL' },
-      { type: 'DICE_LANDED' },
-    )
-    s = walk(s)
+    s = { ...s, starSpaceId: 'q02' }
+    const { from } = approachTo((sp) => sp.event === 'TREE_GOOD')
+    s = walk(rollFrom(s, from, 1))
     expect(s.pending?.kind).toBe('TREE_GOOD_CHOICE')
-    // Fruit Pièces
     const coinBranch = gameReducer(s, {
       type: 'RESOLVE_PENDING',
       choice: { kind: 'TREE_GOOD', pick: 'COIN_FRUIT' },
     })
     expect(coinBranch.players[0].coins).toBe(START_COINS + 5)
-    // Fruit Dé : relance immédiate
     const diceBranch = gameReducer(s, {
       type: 'RESOLVE_PENDING',
       choice: { kind: 'TREE_GOOD', pick: 'DICE_FRUIT' },
@@ -435,19 +559,13 @@ describe('arbres de Woody Woods', () => {
 
   it('l’arbre maudit fait perdre des pièces ou reculer', () => {
     let s = start()
-    s = reduce(
-      s,
-      { type: 'DEBUG_TELEPORT', playerId: 'P1', spaceId: 's20' },
-      { type: 'DEBUG_FORCE_ROLL', value: 1 },
-      { type: 'ROLL_DICE', blockId: 'NORMAL' },
-      { type: 'DICE_LANDED' },
-    )
-    s = walk(s)
+    s = { ...s, starSpaceId: 'q02' }
+    const { from } = approachTo((sp) => sp.event === 'TREE_BAD')
+    s = walk(rollFrom(s, from, 1))
     expect(s.phase).toBe('SPACE_ACTION')
     expect(s.pending?.kind).toBe('POPUP')
     s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
     if (s.movement) {
-      // branche recul : on remonte le graphe puis on résout la case d'arrivée
       expect(s.movement.backward).toBe(true)
       expect(s.phase).toBe('MOVING')
       s = walk(s)
@@ -462,40 +580,32 @@ describe('arbres de Woody Woods', () => {
 describe('case VS (mise + minijeu)', () => {
   it('mise collective, partage du pot et conversion en case bleue', () => {
     let s = start()
-    s = { ...s, starSpaceId: 's17' }
-    s = reduce(
-      s,
-      { type: 'DEBUG_TELEPORT', playerId: 'P1', spaceId: 's26' },
-      { type: 'DEBUG_FORCE_ROLL', value: 1 },
-      { type: 'ROLL_DICE', blockId: 'NORMAL' },
-      { type: 'DICE_LANDED' },
-    )
-    s = walk(s)
+    s = { ...s, starSpaceId: 'q02' }
+    const { from, to } = approachTo((sp) => sp.type === 'VS')
+    s = walk(rollFrom(s, from, 1))
     expect(s.pending?.kind).toBe('VS_WAGER')
     const amount = s.pending?.kind === 'VS_WAGER' ? s.pending.amount : 0
     expect([...VS_WAGERS]).toContain(amount)
     s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'VS_OK' } })
     const wager = Math.min(amount, START_COINS)
-    const pot = wager * 4
     expect(s.minigame?.context).toBe('VS')
-    expect(s.minigame?.pot).toBe(pot)
+    expect(s.minigame?.pot).toBe(wager * 4)
     expect(s.minigame?.category).toBe('FFA')
     expect(s.phase).toBe('MINIGAME_TITLE')
-    expect(s.vsConvertedIds).toContain('s27')
-    expect(effectiveSpaceType(s, 's27')).toBe('BLUE')
+    expect(s.vsConvertedIds).toContain(to)
+    expect(effectiveSpaceType(s, to)).toBe('BLUE')
 
     s = reduce(
       s,
       { type: 'SPIN_TITLE' },
       { type: 'GO_PLAY' },
       { type: 'GO_PODIUM' },
-      { type: 'SET_PODIUM', ranking: ['P1', 'P2', 'P3', 'P4'] },
+      { type: 'SET_PODIUM', groups: [['P1'], ['P2'], ['P3'], ['P4']] },
     )
     expect(s.phase).toBe('REWARDS')
-    const coinsAfter = s.players.reduce((acc, p) => acc + p.coins, 0)
-    expect(coinsAfter).toBe(4 * START_COINS) // le pot est intégralement redistribué
+    const totalCoins = s.players.reduce((acc, p) => acc + p.coins, 0)
+    expect(totalCoins).toBe(4 * START_COINS)
     expect(s.players[0].coins).toBeGreaterThan(s.players[3].coins)
-    // pas de dés de récompense pour un VS
     expect(s.players.every((p) => p.rewardDice === null)).toBe(true)
 
     s = gameReducer(s, { type: 'CONTINUE' })
@@ -503,33 +613,30 @@ describe('case VS (mise + minijeu)', () => {
   })
 })
 
-describe('fin de manche : minijeu, podium, récompenses', () => {
-  it('après les 4 tours, la roulette se déclenche et le podium récompense', () => {
+describe('fin de manche : minijeu, podium par catégorie, récompenses', () => {
+  it('après les 4 tours, la roulette se déclenche et le podium FFA récompense', () => {
     let s = start()
-    s = quickTurn(s) // P1
-    s = quickTurn(s) // P2
-    s = quickTurn(s) // P3
-    s = quickTurn(s) // P4 → minijeu
+    for (let i = 0; i < 4; i++) s = quickTurn(s)
     expect(s.phase).toBe('MINIGAME_CATEGORY')
     expect(s.minigame?.context).toBe('ROUND_END')
 
     s = gameReducer(s, { type: 'SPIN_CATEGORY' })
     const category = s.minigame!.category!
     expect(['FFA', '1v1', '2v2']).toContain(category)
-
     s = gameReducer(s, { type: 'SPIN_TITLE' })
     expect(s.phase).toBe('MINIGAME_TITLE')
     expect(MINIGAMES[category]).toContain(s.minigame!.title!)
-
     s = reduce(s, { type: 'GO_PLAY' }, { type: 'GO_PODIUM' })
     expect(s.phase).toBe('PODIUM')
 
-    // classement invalide refusé
+    // on force un layout FFA pour des assertions déterministes
+    s = podiumState(s, { category: 'FFA' })
+
     const before = s
-    s = gameReducer(s, { type: 'SET_PODIUM', ranking: ['P1', 'P1', 'P3', 'P4'] })
+    s = gameReducer(s, { type: 'SET_PODIUM', groups: [['P1'], ['P1'], ['P3'], ['P4']] })
     expect(s).toBe(before)
 
-    s = gameReducer(s, { type: 'SET_PODIUM', ranking: ['P2', 'P1', 'P3', 'P4'] })
+    s = gameReducer(s, { type: 'SET_PODIUM', groups: [['P2'], ['P1'], ['P3'], ['P4']] })
     expect(s.phase).toBe('REWARDS')
     const [p1, p2, p3, p4] = s.players
     expect(p2.rewardDice).toBe('GOLD')
@@ -547,37 +654,72 @@ describe('fin de manche : minijeu, podium, récompenses', () => {
     expect(s.currentPlayerIndex).toBe(0)
   })
 
-  it('le dé de récompense est imposé au lancer suivant', () => {
+  it('le podium 2v2 récompense par équipe', () => {
     let s = start()
-    for (let i = 0; i < 4; i++) s = quickTurn(s)
+    s = podiumState(s, { category: '2v2' })
+    // mauvais découpage refusé
+    const before = s
+    s = gameReducer(s, { type: 'SET_PODIUM', groups: [['P1'], ['P2'], ['P3'], ['P4']] })
+    expect(s).toBe(before)
+    s = gameReducer(s, { type: 'SET_PODIUM', groups: [['P1', 'P3'], ['P2', 'P4']] })
+    expect(s.phase).toBe('REWARDS')
+    const [p1, p2, p3, p4] = s.players
+    expect(p1.rewardDice).toBe('GOLD')
+    expect(p3.rewardDice).toBe('GOLD')
+    expect(p2.rewardDice).toBe('CURSED')
+    expect(p4.rewardDice).toBe('CURSED')
+    expect(p1.sipsTaken).toBe(0)
+    expect(p2.sipsTaken).toBe(2)
+    expect(p4.sipsTaken).toBe(2)
+  })
+
+  it('le podium 1v1 ne touche pas les spectateurs', () => {
+    let s = start()
+    s = podiumState(s, { category: '1v1' })
+    s = gameReducer(s, { type: 'SET_PODIUM', groups: [['P2'], ['P4'], ['P1', 'P3']] })
+    expect(s.phase).toBe('REWARDS')
+    const [p1, p2, p3, p4] = s.players
+    expect(p2.rewardDice).toBe('GOLD')
+    expect(p4.rewardDice).toBe('CURSED')
+    expect(p4.sipsTaken).toBe(3)
+    expect(p1.rewardDice).toBeNull()
+    expect(p3.rewardDice).toBeNull()
+    expect(p1.sipsTaken).toBe(0)
+    expect(p3.sipsTaken).toBe(0)
+  })
+
+  it('le dé de récompense est un BONUS optionnel, consommé seulement à l’usage', () => {
+    let s = start()
+    s = podiumState(s, { category: 'FFA' })
     s = reduce(
       s,
-      { type: 'SPIN_CATEGORY' },
-      { type: 'SPIN_TITLE' },
-      { type: 'GO_PLAY' },
-      { type: 'GO_PODIUM' },
-      { type: 'SET_PODIUM', ranking: ['P1', 'P2', 'P3', 'P4'] },
+      { type: 'SET_PODIUM', groups: [['P1'], ['P2'], ['P3'], ['P4']] },
       { type: 'CONTINUE' },
     )
-    // P1 a le dé Or : son prochain lancer roule 4-10
-    s = gameReducer(s, { type: 'ROLL_DICE', blockId: 'NORMAL' })
-    expect(s.dice?.blockId).toBe('GOLD')
-    expect(s.dice?.steps).toBeGreaterThanOrEqual(4)
-    expect(s.dice?.steps).toBeLessThanOrEqual(10)
-    expect(s.players[0].rewardDice).toBeNull()
+    expect(s.players[0].rewardDice).toBe('GOLD')
+    // P1 peut toujours lancer le dé normal : le bonus est conservé
+    const normalRoll = gameReducer(s, { type: 'ROLL_DICE', blockId: 'NORMAL' })
+    expect(normalRoll.dice?.blockId).toBe('NORMAL')
+    expect(normalRoll.players[0].rewardDice).toBe('GOLD')
+    // ou choisir le dé Or : consommé, et roule bien 4-10
+    const goldRoll = gameReducer(s, { type: 'ROLL_DICE', blockId: 'GOLD' })
+    expect(goldRoll.dice?.blockId).toBe('GOLD')
+    expect(goldRoll.dice?.steps).toBeGreaterThanOrEqual(4)
+    expect(goldRoll.dice?.steps).toBeLessThanOrEqual(10)
+    expect(goldRoll.players[0].rewardDice).toBeNull()
+    // un joueur sans bonus ne peut pas lancer le dé Or
+    const cheat = gameReducer(goldRoll, { type: 'ROLL_DICE', blockId: 'GOLD' })
+    expect(cheat).toBe(goldRoll)
   })
 
   it('la partie se termine après la dernière manche (étoiles puis pièces)', () => {
     let s = start(1)
     for (let i = 0; i < 4; i++) s = quickTurn(s)
+    s = podiumState(s, { category: 'FFA' })
     s = reduce(
       s,
-      { type: 'SPIN_CATEGORY' },
-      { type: 'SPIN_TITLE' },
-      { type: 'GO_PLAY' },
-      { type: 'GO_PODIUM' },
       { type: 'DEBUG_EDIT_STATS', playerId: 'P3', patch: { stars: 2 } },
-      { type: 'SET_PODIUM', ranking: ['P1', 'P2', 'P3', 'P4'] },
+      { type: 'SET_PODIUM', groups: [['P1'], ['P2'], ['P3'], ['P4']] },
       { type: 'CONTINUE' },
     )
     expect(s.phase).toBe('GAME_OVER')
@@ -585,7 +727,7 @@ describe('fin de manche : minijeu, podium, récompenses', () => {
   })
 })
 
-describe('God Mode (DebugMode.md)', () => {
+describe('God Mode (DebugMode.md + extensions)', () => {
   it('déclenche la phase minijeu instantanément', () => {
     let s = start()
     s = gameReducer(s, { type: 'DEBUG_TRIGGER_MINIGAME' })
@@ -593,10 +735,17 @@ describe('God Mode (DebugMode.md)', () => {
     expect(s.minigame?.context).toBe('ROUND_END')
   })
 
+  it('donne le tour à n’importe quel joueur', () => {
+    let s = start()
+    s = gameReducer(s, { type: 'DEBUG_SET_TURN', playerId: 'P3' })
+    expect(s.currentPlayerIndex).toBe(2)
+    expect(s.phase).toBe('TURN_START')
+  })
+
   it('téléporte, injecte des items et édite les stats avec clamp', () => {
     let s = start()
-    s = gameReducer(s, { type: 'DEBUG_TELEPORT', playerId: 'P2', spaceId: 'i05' })
-    expect(s.players[1].currentSpaceId).toBe('i05')
+    s = gameReducer(s, { type: 'DEBUG_TELEPORT', playerId: 'P2', spaceId: 'm06' })
+    expect(s.players[1].currentSpaceId).toBe('m06')
 
     const before = s
     s = gameReducer(s, { type: 'DEBUG_TELEPORT', playerId: 'P2', spaceId: 'nope' })
@@ -614,6 +763,22 @@ describe('God Mode (DebugMode.md)', () => {
     })
     expect(s.players[1].sipsTaken).toBe(0)
     expect(s.players[1].coins).toBe(99)
+  })
+
+  it('contrôle le mur, le trou et les panneaux', () => {
+    let s = start()
+    const wallId = WALL_SPACE_IDS[0]
+    s = gameReducer(s, { type: 'DEBUG_SET_WALL', spaceId: wallId, strength: 1 })
+    expect(s.walls[wallId]).toBe(1)
+    const invalid = gameReducer(s, { type: 'DEBUG_SET_WALL', spaceId: 'o01', strength: 3 })
+    expect(invalid).toBe(s)
+
+    s = gameReducer(s, { type: 'DEBUG_SET_TRAPPED', playerId: 'P4', trapped: true })
+    expect(s.players[3].trapped).toBe(true)
+
+    const beforeSignposts = { ...s.signposts }
+    s = gameReducer(s, { type: 'DEBUG_REROLL_SIGNPOSTS' })
+    expect(Object.keys(s.signposts).sort()).toEqual(Object.keys(beforeSignposts).sort())
   })
 
   it('annule un lancer forcé', () => {

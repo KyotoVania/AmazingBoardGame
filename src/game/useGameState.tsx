@@ -31,7 +31,7 @@ export interface GameApi {
   spinTitle: () => void
   goPlay: () => void
   goPodium: () => void
-  setPodium: (ranking: PlayerId[]) => void
+  setPodium: (groups: PlayerId[][]) => void
   continueGame: () => void
   restart: () => void
   debug: {
@@ -42,6 +42,10 @@ export interface GameApi {
     injectItem: (playerId: PlayerId, itemId: ItemId) => void
     triggerMinigame: () => void
     editStats: (playerId: PlayerId, patch: DebugStatsPatch) => void
+    setTurn: (playerId: PlayerId) => void
+    setWall: (spaceId: string, strength: number) => void
+    setTrapped: (playerId: PlayerId, trapped: boolean) => void
+    rerollSignposts: () => void
   }
 }
 
@@ -65,7 +69,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       spinTitle: () => dispatch({ type: 'SPIN_TITLE' }),
       goPlay: () => dispatch({ type: 'GO_PLAY' }),
       goPodium: () => dispatch({ type: 'GO_PODIUM' }),
-      setPodium: (ranking) => dispatch({ type: 'SET_PODIUM', ranking }),
+      setPodium: (groups) => dispatch({ type: 'SET_PODIUM', groups }),
       continueGame: () => dispatch({ type: 'CONTINUE' }),
       restart: () => dispatch({ type: 'RESTART' }),
       debug: {
@@ -77,6 +81,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
         injectItem: (playerId, itemId) => dispatch({ type: 'DEBUG_INJECT_ITEM', playerId, itemId }),
         triggerMinigame: () => dispatch({ type: 'DEBUG_TRIGGER_MINIGAME' }),
         editStats: (playerId, patch) => dispatch({ type: 'DEBUG_EDIT_STATS', playerId, patch }),
+        setTurn: (playerId) => dispatch({ type: 'DEBUG_SET_TURN', playerId }),
+        setWall: (spaceId, strength) => dispatch({ type: 'DEBUG_SET_WALL', spaceId, strength }),
+        setTrapped: (playerId, trapped) =>
+          dispatch({ type: 'DEBUG_SET_TRAPPED', playerId, trapped }),
+        rerollSignposts: () => dispatch({ type: 'DEBUG_REROLL_SIGNPOSTS' }),
       },
     }),
     [state],

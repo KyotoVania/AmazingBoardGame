@@ -1,29 +1,17 @@
 // ============================================================
 // ActionBar.tsx — Barre d'action contextuelle (bas de l'écran) :
-// pré-roll (items + choix du dé + LANCER), infos de déplacement,
-// choix d'embranchement, fin de tour.
+// pré-roll (items + choix du dé, y compris le dé BONUS du podium),
+// infos de déplacement, choix d'embranchement libre, fin de tour.
 // ============================================================
 
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
 import { BOARD, getSpace } from '../../game/board'
-import { CHARACTERS, DICE_BLOCKS, ITEMS } from '../../game/constants'
+import { CHARACTERS, DICE_BLOCKS, ITEMS, PIT_ESCAPE_MIN } from '../../game/constants'
 import { effectiveSpaceType, getCurrentPlayer } from '../../game/reducer'
-import type { DiceBlockId, ItemId, Player, SpaceType } from '../../game/types'
+import type { DiceBlockId, ItemId, Player } from '../../game/types'
 import { useGame } from '../../game/useGameState'
-
-const SPACE_TYPE_LABELS: Record<SpaceType, string> = {
-  START: 'Départ',
-  BLUE: 'Case Bleue',
-  RED: 'Case Rouge',
-  EVENT: 'Événement',
-  ITEM: 'Case Item',
-  LUCKY: 'Case Chance',
-  BAD_LUCK: 'Case Poisse',
-  VS: 'Case VS',
-  SIP_PLUS: 'Gorgées !',
-  SIP_MINUS: 'Distribution',
-}
+import { SPACE_TYPE_LABELS, arrowFor } from './labels'
 
 export function ActionBar() {
   const { state } = useGame()
@@ -80,8 +68,7 @@ function PreRollBar({ player }: { player: Player }) {
   const [itemsOpen, setItemsOpen] = useState(false)
   const charDice = DICE_BLOCKS[player.character]
   const reward = player.rewardDice
-  const effective: DiceBlockId = reward ?? selectedDice
-  const faces = DICE_BLOCKS[effective].faces
+  const faces = DICE_BLOCKS[selectedDice].faces
 
   return (
     <BarShell>
@@ -104,29 +91,38 @@ function PreRollBar({ player }: { player: Player }) {
         </button>
       </div>
 
+      {player.trapped && (
+        <div className="mt-3 rounded-xl bg-red-500/15 px-4 py-2 text-sm font-extrabold text-red-300">
+          🕳️ {player.name} est au fond du trou ! Il faut un lancer total ≥ {PIT_ESCAPE_MIN} pour
+          sortir, sinon tu restes coincé.
+        </div>
+      )}
+
       <div className="mt-3 flex items-center gap-3">
-        {reward ? (
-          <div className="bg-gold-400/15 text-gold-300 flex-1 rounded-xl px-4 py-2 text-sm font-extrabold">
-            🎁 Dé imposé par le podium : {DICE_BLOCKS[reward].label}
-          </div>
-        ) : (
-          <div className="bg-night-800 flex flex-1 gap-1 rounded-xl p-1">
+        <div className="bg-night-800 flex flex-1 gap-1 rounded-xl p-1">
+          <DiceChoice
+            label="Dé Normal"
+            active={selectedDice === 'NORMAL'}
+            onClick={() => setSelectedDice('NORMAL')}
+          />
+          <DiceChoice
+            label={charDice.label}
+            active={selectedDice === player.character}
+            onClick={() => setSelectedDice(player.character)}
+          />
+          {reward && (
             <DiceChoice
-              label="Dé Normal"
-              active={selectedDice === 'NORMAL'}
-              onClick={() => setSelectedDice('NORMAL')}
+              label={`🎁 ${DICE_BLOCKS[reward].label}`}
+              active={selectedDice === reward}
+              gold
+              onClick={() => setSelectedDice(reward)}
             />
-            <DiceChoice
-              label={charDice.label}
-              active={selectedDice === player.character}
-              onClick={() => setSelectedDice(player.character)}
-            />
-          </div>
-        )}
+          )}
+        </div>
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.94 }}
-          onClick={() => rollDice(effective)}
+          onClick={() => rollDice(selectedDice)}
           className="font-display from-gold-400 to-gold-500 text-night-950 rounded-xl bg-gradient-to-b px-8 py-3 text-2xl tracking-wider shadow-[0_5px_0_rgba(0,0,0,0.35)]"
         >
           🎲 LANCER
@@ -145,6 +141,11 @@ function PreRollBar({ player }: { player: Player }) {
             ) : null}
           </span>
         ))}
+        {reward && selectedDice !== reward && (
+          <span className="bg-gold-400/15 text-gold-300 rounded px-1.5 py-0.5">
+            🎁 bonus podium dispo : {DICE_BLOCKS[reward].label}
+          </span>
+        )}
         {state.rollBonus > 0 && (
           <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-emerald-300">
             +{state.rollBonus} champignon
@@ -165,12 +166,26 @@ function PreRollBar({ player }: { player: Player }) {
   )
 }
 
-function DiceChoice({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function DiceChoice({
+  label,
+  active,
+  gold,
+  onClick,
+}: {
+  label: string
+  active: boolean
+  gold?: boolean
+  onClick: () => void
+}) {
   return (
     <button
       onClick={onClick}
       className={`flex-1 rounded-lg px-3 py-2 text-sm font-extrabold transition-colors ${
-        active ? 'bg-gold-400 text-night-950' : 'text-cream/70 hover:bg-night-700'
+        active
+          ? 'bg-gold-400 text-night-950'
+          : gold
+            ? 'text-gold-300 hover:bg-night-700'
+            : 'text-cream/70 hover:bg-night-700'
       }`}
     >
       {label}
@@ -220,7 +235,7 @@ function ItemMenu({ player, onClose }: { player: Player; onClose: () => void }) 
               </button>
             )
           })}
-          <button onClick={onClose} className="text-cream/60 ml-auto self-center px-2 text-sm font-bold hover:text-cream">
+          <button onClick={onClose} className="text-cream/60 hover:text-cream ml-auto self-center px-2 text-sm font-bold">
             Fermer ✕
           </button>
         </div>
@@ -236,7 +251,7 @@ function ItemMenu({ player, onClose }: { player: Player; onClose: () => void }) 
               {v}
             </button>
           ))}
-          <button onClick={() => setPicked(null)} className="text-cream/60 ml-auto text-sm font-bold hover:text-cream">
+          <button onClick={() => setPicked(null)} className="text-cream/60 hover:text-cream ml-auto text-sm font-bold">
             ← Retour
           </button>
         </div>
@@ -262,7 +277,7 @@ function ItemMenu({ player, onClose }: { player: Player; onClose: () => void }) 
               </button>
             )
           })}
-          <button onClick={() => setPicked(null)} className="text-cream/60 ml-auto text-sm font-bold hover:text-cream">
+          <button onClick={() => setPicked(null)} className="text-cream/60 hover:text-cream ml-auto text-sm font-bold">
             ← Retour
           </button>
         </div>
@@ -271,24 +286,18 @@ function ItemMenu({ player, onClose }: { player: Player; onClose: () => void }) 
   )
 }
 
-// ---------- Choix d'embranchement ----------
-
-function arrowFor(dx: number, dy: number): string {
-  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? '➡️' : '⬅️'
-  return dy > 0 ? '⬇️' : '⬆️'
-}
+// ---------- Choix d'embranchement (forks LIBRES uniquement) ----------
 
 function ForkBar({ player }: { player: Player }) {
   const { state, chooseFork } = useGame()
   const space = getSpace(player.currentSpaceId)
-  const suggested = state.signposts[player.currentSpaceId]
   return (
     <BarShell>
       <p className="text-center text-lg font-extrabold">
-        🪧 Embranchement ! Choisis ton chemin (ou clique une case dorée)
+        🛤️ Embranchement libre ! Choisis ton chemin (ou clique une case dorée)
       </p>
       <div className="mt-3 flex justify-center gap-3">
-        {space.nextSpaces.map((id, i) => {
+        {space.nextSpaces.map((id) => {
           const target = BOARD[id]
           const type = effectiveSpaceType(state, id)
           return (
@@ -301,9 +310,6 @@ function ForkBar({ player }: { player: Player }) {
             >
               <span className="text-2xl">{arrowFor(target.x - space.x, target.y - space.y)}</span>
               <span className="ml-2 text-sm font-extrabold">{SPACE_TYPE_LABELS[type]}</span>
-              {suggested === i && (
-                <span className="text-gold-300 block text-xs font-bold">🪧 conseillé par le panneau</span>
-              )}
             </motion.button>
           )
         })}
