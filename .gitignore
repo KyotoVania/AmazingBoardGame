@@ -24,3 +24,6 @@ Thumbs.db
 
 # Test
 coverage/
+
+# Smoke test artifacts
+smoke-*.png
