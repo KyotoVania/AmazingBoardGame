@@ -11,7 +11,7 @@ import * as THREE from 'three'
 import { spaceWorldPos } from '../../game/board'
 import { CHARACTERS } from '../../game/constants'
 import type { Player } from '../../game/types'
-import { FittedModel } from './Models'
+import { FittedModel, ModelErrorBoundary } from './Models'
 import { avatarTextureCache, circularImageTexture, spriteTexture } from './textures'
 
 /** Décalage par joueur pour éviter l'empilement sur une même case. */
@@ -90,10 +90,13 @@ export function PlayerToken3D({ player, index, isCurrent, hopTo, modelUrl, onHop
   return (
     <animated.group position-x={x} position-y={y} position-z={z}>
       {modelUrl ? (
-        // Modèle .glb custom : normalisé par FittedModel, pion par défaut en attendant
-        <Suspense fallback={<DefaultPawn color={player.color} />}>
-          <FittedModel url={modelUrl} height={1.05} />
-        </Suspense>
+        // Modèle .glb custom : normalisé par FittedModel, pion par défaut en
+        // attendant (et en secours si le fichier est introuvable/cassé)
+        <ModelErrorBoundary key={modelUrl} fallback={<DefaultPawn color={player.color} />}>
+          <Suspense fallback={<DefaultPawn color={player.color} />}>
+            <FittedModel url={modelUrl} height={1.05} />
+          </Suspense>
+        </ModelErrorBoundary>
       ) : (
         <DefaultPawn color={player.color} />
       )}

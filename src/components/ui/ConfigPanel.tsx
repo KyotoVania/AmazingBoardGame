@@ -8,11 +8,12 @@
 // ============================================================
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { CHARACTERS } from '../../game/constants'
 import type { GameConfig, MinigameCategory, PlayerId } from '../../game/types'
 import { useGame } from '../../game/useGameState'
-import { useModels, type ModelSlot } from '../three/Models'
+import { type ModelSlot } from '../three/Models'
+import { ModelPicker } from './ModelPicker'
 
 type Tab = 'RULES' | 'MINIGAMES' | 'MODELS'
 
@@ -196,13 +197,18 @@ function MinigamesTab() {
 
 // ---------- Onglet Modèles 3D (.glb) ----------
 
+const DECOR_SLOTS: { slot: ModelSlot; label: string }[] = [
+  { slot: 'STAR', label: "⭐ L'Étoile" },
+  { slot: 'TREE_GOOD', label: '🌳 Arbre généreux' },
+  { slot: 'TREE_BAD', label: '🌳 Arbre maudit' },
+  { slot: 'MOLE', label: '🦫 Topi Taupe' },
+  { slot: 'BOO', label: '👻 Boo' },
+]
+
 function ModelsTab() {
   const { state } = useGame()
-  const { models, setModel } = useModels()
 
-  const nameFor = (slot: ModelSlot): string => {
-    if (slot === 'STAR') return "⭐ L'Étoile"
-    if (slot === 'DICE') return '🎲 (réservé)'
+  const playerLabel = (slot: PlayerId): string => {
     const p = state.players.find((pl) => pl.id === slot)
     return p ? `${CHARACTERS[p.character].emoji} ${p.name}` : `Pion ${slot}`
   }
@@ -210,91 +216,34 @@ function ModelsTab() {
   return (
     <div>
       <p className="text-cream/60 text-xs font-bold">
-        Charge un fichier .glb (upload) ou indique un chemin servi par Vite — dépose tes fichiers
-        dans <code className="text-gold-300">public/models/</code> puis référence-les par{' '}
-        <code className="text-gold-300">/models/mon-fichier.glb</code>. Le modèle remplace le pion
-        (mis à l'échelle et posé au sol automatiquement).
+        Banque : dépose tes .glb dans <code className="text-gold-300">public/models/</code> et
+        liste-les dans <code className="text-gold-300">public/models/manifest.json</code>{' '}
+        (<code>{'[{ "name": "Grenouille", "file": "/models/frog.glb" }]'}</code>). Upload direct
+        possible aussi. Mise à l'échelle et pose au sol automatiques, repli sur le modèle par
+        défaut si le fichier est cassé.
       </p>
-      <div className="mt-3 flex flex-col gap-2.5">
-        {[...PLAYER_SLOTS, 'STAR' as const].map((slot) => (
-          <ModelSlotRow key={slot} slot={slot} label={nameFor(slot)} current={models[slot] ?? null} onSet={(url) => setModel(slot, url)} />
+      <p className="text-gold-300/90 mt-2 text-xs font-extrabold tracking-wide uppercase">Pions</p>
+      <div className="mt-1.5 flex flex-col gap-2">
+        {PLAYER_SLOTS.map((slot) => (
+          <div key={slot} className="bg-night-800/80 flex items-center gap-3 rounded-xl px-4 py-2.5">
+            <span className="w-36 shrink-0 truncate text-sm font-extrabold">{playerLabel(slot)}</span>
+            <div className="min-w-0 flex-1">
+              <ModelPicker slot={slot} compact />
+            </div>
+          </div>
         ))}
       </div>
-    </div>
-  )
-}
-
-function ModelSlotRow({
-  slot,
-  label,
-  current,
-  onSet,
-}: {
-  slot: ModelSlot
-  label: string
-  current: string | null
-  onSet: (url: string | null) => void
-}) {
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [path, setPath] = useState('')
-
-  return (
-    <div className="bg-night-800/80 flex flex-wrap items-center gap-2.5 rounded-xl px-4 py-2.5">
-      <span className="w-36 truncate text-sm font-extrabold">{label}</span>
-      <button
-        onClick={() => fileRef.current?.click()}
-        className="bg-night-900 hover:bg-night-700 rounded-lg px-3 py-1.5 text-xs font-extrabold"
-      >
-        📂 Charger un .glb
-      </button>
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".glb,.gltf,model/gltf-binary"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) onSet(URL.createObjectURL(file))
-          e.target.value = ''
-        }}
-      />
-      <input
-        value={path}
-        onChange={(e) => setPath(e.target.value)}
-        placeholder="/models/mon-pion.glb"
-        className="bg-night-900 focus:ring-gold-400 min-w-0 flex-1 rounded-lg px-2.5 py-1.5 font-mono text-xs outline-none focus:ring-2"
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && path.trim()) {
-            onSet(path.trim())
-            setPath('')
-          }
-        }}
-      />
-      <button
-        disabled={!path.trim()}
-        onClick={() => {
-          onSet(path.trim())
-          setPath('')
-        }}
-        className="bg-gold-400/15 text-gold-300 hover:bg-gold-400/25 rounded-lg px-2.5 py-1.5 text-xs font-extrabold disabled:opacity-35"
-      >
-        OK
-      </button>
-      {current && (
-        <span className="flex items-center gap-1.5">
-          <span className="max-w-40 truncate font-mono text-[10px] text-emerald-300">
-            ✓ {current.startsWith('blob:') ? 'fichier chargé' : current}
-          </span>
-          <button
-            onClick={() => onSet(null)}
-            title="Retirer le modèle"
-            className="grid h-5 w-5 place-items-center rounded-full bg-red-500/80 text-[10px] font-extrabold text-white"
-          >
-            ✕
-          </button>
-        </span>
-      )}
-      <span className="sr-only">{slot}</span>
+      <p className="text-gold-300/90 mt-3 text-xs font-extrabold tracking-wide uppercase">Décor & PNJ</p>
+      <div className="mt-1.5 flex flex-col gap-2">
+        {DECOR_SLOTS.map(({ slot, label }) => (
+          <div key={slot} className="bg-night-800/80 flex items-center gap-3 rounded-xl px-4 py-2.5">
+            <span className="w-36 shrink-0 truncate text-sm font-extrabold">{label}</span>
+            <div className="min-w-0 flex-1">
+              <ModelPicker slot={slot} compact />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

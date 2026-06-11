@@ -8,15 +8,31 @@
 // ============================================================
 
 import { useGLTF } from '@react-three/drei'
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import {
+  Component,
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
 import * as THREE from 'three'
 import type { PlayerId } from '../../game/types'
 
 /** Emplacements pouvant recevoir un modèle custom. */
-export type ModelSlot = PlayerId | 'STAR' | 'DICE'
+export type ModelSlot = PlayerId | 'STAR' | 'TREE_GOOD' | 'TREE_BAD' | 'MOLE' | 'BOO'
+
+/** Une entrée de la banque de modèles (public/models/manifest.json). */
+export interface ModelBankEntry {
+  name: string
+  file: string
+}
 
 interface ModelsApi {
   models: Partial<Record<ModelSlot, string>>
+  /** Banque chargée depuis /models/manifest.json (vide si absent). */
+  bank: ModelBankEntry[]
   setModel: (slot: ModelSlot, url: string | null) => void
 }
 
@@ -24,10 +40,29 @@ const ModelsContext = createContext<ModelsApi | null>(null)
 
 export function ModelsProvider({ children }: { children: ReactNode }) {
   const [models, setModels] = useState<Partial<Record<ModelSlot, string>>>({})
+  const [bank, setBank] = useState<ModelBankEntry[]>([])
+
+  // Banque de modèles : manifest optionnel, échec silencieux.
+  useEffect(() => {
+    fetch('/models/manifest.json')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: unknown) => {
+        if (Array.isArray(list)) {
+          setBank(
+            list.filter(
+              (e): e is ModelBankEntry =>
+                !!e && typeof e.name === 'string' && typeof e.file === 'string',
+            ),
+          )
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const api = useMemo<ModelsApi>(
     () => ({
       models,
+      bank,
       setModel: (slot, url) =>
         setModels((prev) => {
           const old = prev[slot]
@@ -39,7 +74,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
           return next
         }),
     }),
-    [models],
+    [models, bank],
   )
 
   return <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
@@ -99,4 +134,26 @@ export function FittedModel({ url, height = 1.0, tint = null }: FittedProps) {
   }, [scene, height, tint])
 
   return <primitive object={obj} />
+}
+
+// ---------- Garde-fou : .glb introuvable ou corrompu ----------
+
+interface BoundaryProps {
+  /** Re-render propre quand l'URL change (mettre key={url} à l'usage). */
+  fallback: ReactNode
+  children: ReactNode
+}
+
+/** Si le chargement du modèle explose, on retombe sur le rendu par défaut. */
+export class ModelErrorBoundary extends Component<BoundaryProps, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+  componentDidCatch(error: unknown) {
+    console.warn('[Models] échec de chargement du .glb :', error)
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children
+  }
 }

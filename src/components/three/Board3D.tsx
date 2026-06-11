@@ -24,7 +24,7 @@ import { effectiveSpaceType, getCurrentPlayer } from '../../game/reducer'
 import type { GameState, SpaceType } from '../../game/types'
 import { grassTexture, labelTexture, spriteTexture, woodTexture } from './textures'
 import { SPACE_TYPE_LABELS } from '../ui/labels'
-import { FittedModel } from './Models'
+import { FittedModel, ModelErrorBoundary, type ModelSlot } from './Models'
 
 const SPACE_COLORS: Record<SpaceType, string> = {
   START: '#7cb342',
@@ -53,11 +53,11 @@ const SPACE_LABELS: Partial<Record<SpaceType, { text: string; color?: string }>>
 interface BoardProps {
   state: GameState
   chooseFork: (spaceId: string) => void
-  /** Modèle .glb custom pour l'Étoile (Config Panel). */
-  starModelUrl?: string | null
+  /** Modèles .glb custom par emplacement (banque / uploads). */
+  models?: Partial<Record<ModelSlot, string>>
 }
 
-export function Board3D({ state, chooseFork, starModelUrl = null }: BoardProps) {
+export function Board3D({ state, chooseFork, models = {} }: BoardProps) {
   const player = getCurrentPlayer(state)
   const debug = state.mode === 'DEBUG'
   const [hovered, setHovered] = useState<string | null>(null)
@@ -84,10 +84,10 @@ export function Board3D({ state, chooseFork, starModelUrl = null }: BoardProps) 
       ))}
       <Walls3D walls={state.walls} />
       {debug && hovered && <DebugSpaceTip id={hovered} />}
-      <StarBeacon spaceId={state.starSpaceId} modelUrl={starModelUrl} />
-      <BooGhost />
-      <MoleNpc />
-      <EventTrees />
+      <StarBeacon spaceId={state.starSpaceId} modelUrl={models.STAR ?? null} />
+      <BooGhost modelUrl={models.BOO ?? null} />
+      <MoleNpc modelUrl={models.MOLE ?? null} />
+      <EventTrees goodUrl={models.TREE_GOOD ?? null} badUrl={models.TREE_BAD ?? null} />
       <DecorTrees />
       <Signposts signposts={state.signposts} />
     </group>
@@ -270,6 +270,26 @@ function Space3D({ id, type, isCurrent, isForkCandidate, onPick, onHover }: Spac
   )
 }
 
+/** Modèle custom avec repli sur le rendu par défaut (404, .glb cassé…). */
+function CustomOrDefault({
+  url,
+  height,
+  children,
+}: {
+  url: string | null
+  height: number
+  children: React.ReactNode
+}) {
+  if (!url) return <>{children}</>
+  return (
+    <ModelErrorBoundary key={url} fallback={children}>
+      <Suspense fallback={children}>
+        <FittedModel url={url} height={height} />
+      </Suspense>
+    </ModelErrorBoundary>
+  )
+}
+
 // ---------- Points d'intérêt ----------
 
 function StarBeacon({ spaceId, modelUrl }: { spaceId: string; modelUrl?: string | null }) {
@@ -284,15 +304,11 @@ function StarBeacon({ spaceId, modelUrl }: { spaceId: string; modelUrl?: string 
   return (
     <group position={[x, 0, z]}>
       <group ref={ref}>
-        {modelUrl ? (
-          <Suspense fallback={null}>
-            <FittedModel url={modelUrl} height={1.3} />
-          </Suspense>
-        ) : (
+        <CustomOrDefault url={modelUrl ?? null} height={1.3}>
           <sprite scale={[1.25, 1.25, 1.25]}>
             <spriteMaterial map={tex} transparent depthWrite={false} />
           </sprite>
-        )}
+        </CustomOrDefault>
       </group>
       <pointLight position={[0, 2, 0]} color="#ffd54a" intensity={6} distance={6} />
       <Sparkles count={26} scale={[2.2, 2.6, 2.2]} position={[0, 1.5, 0]} size={3.4} speed={0.5} color="#ffe082" />
@@ -304,19 +320,24 @@ function StarBeacon({ spaceId, modelUrl }: { spaceId: string; modelUrl?: string 
   )
 }
 
-function BooGhost() {
-  const ref = useRef<THREE.Sprite>(null)
+function BooGhost({ modelUrl }: { modelUrl: string | null }) {
+  const ref = useRef<THREE.Group>(null)
   const tex = useMemo(() => spriteTexture('👻'), [])
   const boo = Object.values(BOARD).find((s) => s.hasBoo)
   useFrame(({ clock }) => {
     if (!ref.current) return
-    ref.current.position.y = 1.3 + Math.sin(clock.elapsedTime * 1.6) * 0.2
+    // flottement fantomatique, modèle custom inclus
+    ref.current.position.y = (modelUrl ? 0.55 : 1.3) + Math.sin(clock.elapsedTime * 1.6) * 0.2
   })
   if (!boo) return null
   return (
-    <sprite ref={ref} position={[boo.x + 0.55, 1.3, boo.y - 0.55]} scale={[0.95, 0.95, 0.95]}>
-      <spriteMaterial map={tex} transparent depthWrite={false} opacity={0.92} />
-    </sprite>
+    <group ref={ref} position={[boo.x + 0.55, 1.3, boo.y - 0.55]}>
+      <CustomOrDefault url={modelUrl} height={1.15}>
+        <sprite scale={[0.95, 0.95, 0.95]}>
+          <spriteMaterial map={tex} transparent depthWrite={false} opacity={0.92} />
+        </sprite>
+      </CustomOrDefault>
+    </group>
   )
 }
 
@@ -428,7 +449,7 @@ function centroid(ids: string[]): [number, number] {
   return [x, y]
 }
 
-function EventTrees() {
+function EventTrees({ goodUrl, badUrl }: { goodUrl: string | null; badUrl: string | null }) {
   // Chaque arbre trône au centre de SES 3 cases événement, décalé hors du chemin.
   if (TREE_GOOD_IDS.length === 0 || TREE_BAD_IDS.length === 0) return null
   const [gx, gy] = centroid(TREE_GOOD_IDS)
@@ -437,23 +458,29 @@ function EventTrees() {
     <group>
       {/* L'arbre généreux, au cœur de ses 3 cases */}
       <group position={[gx - 1.3, 0, gy + 1.5]}>
-        <Tree position={[0, 0, 0]} scale={2.1} foliage="#2e7d32" variant="round" />
-        <mesh position={[0.45, 2.3, 0.25]} castShadow>
-          <sphereGeometry args={[0.12, 10, 8]} />
-          <meshStandardMaterial color="#ef5350" />
-        </mesh>
-        <mesh position={[-0.4, 2.8, -0.15]} castShadow>
-          <sphereGeometry args={[0.12, 10, 8]} />
-          <meshStandardMaterial color="#ffca28" />
-        </mesh>
-        <mesh position={[0.1, 3.1, 0.3]} castShadow>
-          <sphereGeometry args={[0.12, 10, 8]} />
-          <meshStandardMaterial color="#66bb6a" />
-        </mesh>
+        <CustomOrDefault url={goodUrl} height={3.4}>
+          <group>
+            <Tree position={[0, 0, 0]} scale={2.1} foliage="#2e7d32" variant="round" />
+            <mesh position={[0.45, 2.3, 0.25]} castShadow>
+              <sphereGeometry args={[0.12, 10, 8]} />
+              <meshStandardMaterial color="#ef5350" />
+            </mesh>
+            <mesh position={[-0.4, 2.8, -0.15]} castShadow>
+              <sphereGeometry args={[0.12, 10, 8]} />
+              <meshStandardMaterial color="#ffca28" />
+            </mesh>
+            <mesh position={[0.1, 3.1, 0.3]} castShadow>
+              <sphereGeometry args={[0.12, 10, 8]} />
+              <meshStandardMaterial color="#66bb6a" />
+            </mesh>
+          </group>
+        </CustomOrDefault>
       </group>
       {/* L'arbre maudit, au cœur de ses 3 cases */}
       <group position={[bx - 1.4, 0, by - 1.4]}>
-        <Tree position={[0, 0, 0]} scale={2.2} foliage="#5b2a86" trunk="#3b2417" variant="round" />
+        <CustomOrDefault url={badUrl} height={3.5}>
+          <Tree position={[0, 0, 0]} scale={2.2} foliage="#5b2a86" trunk="#3b2417" variant="round" />
+        </CustomOrDefault>
         <pointLight position={[0, 2.4, 0]} color="#9c4dcc" intensity={3} distance={6} />
       </group>
     </group>
@@ -461,13 +488,14 @@ function EventTrees() {
 }
 
 /** Topi Taupe : posté sur sa butte, il héle les passants. */
-function MoleNpc() {
-  const ref = useRef<THREE.Sprite>(null)
+function MoleNpc({ modelUrl }: { modelUrl: string | null }) {
+  const ref = useRef<THREE.Group>(null)
   const tex = useMemo(() => spriteTexture('🦫'), [])
   useFrame(({ clock }) => {
     if (!ref.current) return
     // il sort et rentre de son trou
-    ref.current.position.y = 0.75 + Math.abs(Math.sin(clock.elapsedTime * 1.4)) * 0.35
+    ref.current.position.y =
+      (modelUrl ? 0.1 : 0.75) + Math.abs(Math.sin(clock.elapsedTime * 1.4)) * 0.35
   })
   if (!MOLE_SPACE_ID) return null
   const space = getSpace(MOLE_SPACE_ID)
@@ -478,9 +506,13 @@ function MoleNpc() {
         <sphereGeometry args={[0.42, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
         <meshStandardMaterial color="#6d4c2f" roughness={1} />
       </mesh>
-      <sprite ref={ref} position-y={0.75} scale={[0.85, 0.85, 0.85]}>
-        <spriteMaterial map={tex} transparent depthWrite={false} />
-      </sprite>
+      <group ref={ref} position-y={0.75}>
+        <CustomOrDefault url={modelUrl} height={0.95}>
+          <sprite scale={[0.85, 0.85, 0.85]}>
+            <spriteMaterial map={tex} transparent depthWrite={false} />
+          </sprite>
+        </CustomOrDefault>
+      </group>
     </group>
   )
 }

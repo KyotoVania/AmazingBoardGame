@@ -49,7 +49,7 @@ export function GameCanvas({ api }: { api: GameApi }) {
       />
       {/* contre-jour froid pour détacher les silhouettes */}
       <directionalLight position={[-14, 9, -16]} intensity={0.45} color="#7fa3ff" />
-      <Board3D state={state} chooseFork={api.chooseFork} starModelUrl={models.STAR ?? null} />
+      <Board3D state={state} chooseFork={api.chooseFork} models={models} />
       {state.players.map((p, i) => (
         <PlayerToken3D
           key={p.id}
