@@ -393,6 +393,7 @@ export type GameAction =
   | { type: 'CONTINUE' }
   | { type: 'BEGIN_ROUND' }
   | { type: 'SET_CONFIG'; patch: Partial<GameConfig> }
+  | { type: 'LOAD_STATE'; state: GameState }
   | { type: 'RESTART' }
   // ----- God Mode (DebugMode.md + extensions) -----
   | { type: 'DEBUG_SET_MODE'; mode: GameMode }

@@ -4,7 +4,8 @@
 // God Mode exigés par DebugMode.md, sans casser la boucle de tour.
 // ============================================================
 
-import { createContext, useContext, useMemo, useReducer, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react'
+import { autosave } from './autosave'
 import { createInitialState, gameReducer } from './reducer'
 import type {
   DebugStatsPatch,
@@ -36,6 +37,7 @@ export interface GameApi {
   continueGame: () => void
   beginRound: () => void
   setConfig: (patch: Partial<GameConfig>) => void
+  loadState: (saved: GameState) => void
   restart: () => void
   debug: {
     setMode: (mode: GameMode) => void
@@ -57,6 +59,11 @@ const GameContext = createContext<GameApi | null>(null)
 export function GameProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(gameReducer, undefined, createInitialState)
 
+  // 💾 Autosave : l'état ne change que sur action de jeu → coût négligeable
+  useEffect(() => {
+    autosave(state)
+  }, [state])
+
   const api = useMemo<GameApi>(
     () => ({
       state,
@@ -76,6 +83,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       continueGame: () => dispatch({ type: 'CONTINUE' }),
       beginRound: () => dispatch({ type: 'BEGIN_ROUND' }),
       setConfig: (patch) => dispatch({ type: 'SET_CONFIG', patch }),
+      loadState: (saved) => dispatch({ type: 'LOAD_STATE', state: saved }),
       restart: () => dispatch({ type: 'RESTART' }),
       debug: {
         setMode: (mode) => dispatch({ type: 'DEBUG_SET_MODE', mode }),

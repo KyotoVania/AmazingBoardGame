@@ -1043,6 +1043,22 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return s
     }
 
+    case 'LOAD_STATE': {
+      // Restauration d'une autosave : on repart d'un état par défaut
+      // fusionné avec la save (robuste aux champs ajoutés depuis).
+      const loaded = action.state
+      if (!loaded || !Array.isArray(loaded.players) || loaded.players.length === 0) return state
+      const base = createInitialState()
+      const restored: GameState = {
+        ...base,
+        ...structuredClone(loaded),
+        config: { ...base.config, ...structuredClone(loaded.config ?? base.config) },
+        mode: s.mode, // on garde le mode courant (LIVE/DEBUG)
+      }
+      log(restored, '💾 Partie restaurée depuis la sauvegarde automatique', 'SYSTEM')
+      return restored
+    }
+
     case 'RESTART': {
       const fresh = createInitialState()
       fresh.mode = s.mode

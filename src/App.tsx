@@ -17,6 +17,7 @@ import { LobbyScreen } from './components/ui/LobbyScreen'
 import { MinigameOverlay } from './components/ui/MinigameOverlay'
 import { PodiumScreen } from './components/ui/PodiumScreen'
 import { RewardsScreen } from './components/ui/RewardsScreen'
+import { ResumeBanner } from './components/ui/ResumeBanner'
 import { RoundIntro } from './components/ui/RoundIntro'
 import { FxOverlay } from './components/ui/FxOverlay'
 import { GameProvider, useGame } from './game/useGameState'
@@ -53,7 +54,10 @@ function Shell() {
   return (
     <div className="relative h-dvh w-screen overflow-hidden bg-night-950 font-sans text-cream">
       {state.phase === 'LOBBY' ? (
-        <LobbyScreen />
+        <>
+          <LobbyScreen />
+          <ResumeBanner />
+        </>
       ) : (
         <>
           <div className="absolute inset-0">

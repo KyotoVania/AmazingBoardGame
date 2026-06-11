@@ -743,6 +743,30 @@ describe('fin de manche : minijeu, podium par catégorie, récompenses', () => {
   })
 })
 
+describe('sauvegarde / restauration', () => {
+  it('LOAD_STATE restaure une partie complète (round, joueurs, phase)', () => {
+    let s = start()
+    s = quickTurn(s)
+    const snapshot = structuredClone(s)
+    let fresh = createInitialState()
+    fresh = gameReducer(fresh, { type: 'LOAD_STATE', state: snapshot })
+    expect(fresh.round).toBe(s.round)
+    expect(fresh.phase).toBe(s.phase)
+    expect(fresh.currentPlayerIndex).toBe(s.currentPlayerIndex)
+    expect(fresh.players.map((p) => p.coins)).toEqual(s.players.map((p) => p.coins))
+    expect(fresh.signposts).toEqual(s.signposts)
+  })
+
+  it('LOAD_STATE refuse une save invalide', () => {
+    const before = createInitialState()
+    const after = gameReducer(before, {
+      type: 'LOAD_STATE',
+      state: { ...before, players: [] },
+    })
+    expect(after).toBe(before)
+  })
+})
+
 describe('la Roue de Kamek (case poisse)', () => {
   it('atterrir sur la case poisse lance la roue, et le sort pré-tiré est appliqué', () => {
     let s = start()
