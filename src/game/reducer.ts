@@ -110,7 +110,7 @@ function playerById(s: GameState, id: PlayerId): Player {
   return p
 }
 
-function addCoins(s: GameState, p: Player, delta: number): void {
+function addCoins(p: Player, delta: number): void {
   p.coins = Math.max(0, p.coins + delta)
 }
 
@@ -219,12 +219,12 @@ function landOnSpace(s: GameState): void {
       popup(s, '🏁 Case Départ', 'Rien ne se passe ici. Profites-en pour souffler.', 'NEUTRAL')
       break
     case 'BLUE':
-      addCoins(s, p, BLUE_COINS)
+      addCoins(p, BLUE_COINS)
       log(s, `${p.name} gagne ${BLUE_COINS} pièces (case bleue)`, 'GOOD')
       popup(s, '🔵 Case Bleue', `+${BLUE_COINS} pièces !`, 'GOOD')
       break
     case 'RED':
-      addCoins(s, p, -RED_COINS)
+      addCoins(p, -RED_COINS)
       log(s, `${p.name} perd ${RED_COINS} pièces (case rouge)`, 'BAD')
       popup(s, '🔴 Case Rouge', `-${RED_COINS} pièces…`, 'BAD')
       break
@@ -244,7 +244,7 @@ function landOnSpace(s: GameState): void {
       // wiki SMP : la roulette fait gagner des items ou des pièces
       if (p.inventory.length >= MAX_INVENTORY || rand() < 0.5) {
         const amount = pick(LUCKY_COINS)
-        addCoins(s, p, amount)
+        addCoins(p, amount)
         log(s, `${p.name} gagne ${amount} pièces (case chance)`, 'GOOD')
         popup(s, '🍀 Case Chance', `La roulette s'arrête sur +${amount} pièces !`, 'GOOD')
       } else {
@@ -266,7 +266,7 @@ function landOnSpace(s: GameState): void {
         popup(s, '💀 Case Poisse', `Kamek te confisque ${item.emoji} ${item.name}…`, 'BAD')
       } else {
         const amount = pick(BAD_LUCK_COINS)
-        addCoins(s, p, -amount)
+        addCoins(p, -amount)
         log(s, `${p.name} perd ${amount} pièces (case poisse)`, 'BAD')
         popup(s, '💀 Case Poisse', `La roue de Kamek : -${amount} pièces…`, 'BAD')
       }
@@ -301,7 +301,7 @@ function resolveEvent(s: GameState, space: BoardSpace, wasBackward: boolean): vo
       // Doc Woody Woods : perdre des pièces OU un dé qui fait reculer
       // (et la case d'arrivée s'active). Pas de recul en chaîne.
       if (wasBackward || rand() < 0.5) {
-        addCoins(s, p, -TREE_BAD_COINS)
+        addCoins(p, -TREE_BAD_COINS)
         log(s, `${p.name} perd ${TREE_BAD_COINS} pièces (arbre maudit)`, 'BAD')
         popup(s, '🌳 Arbre maudit', `L'arbre secoue ses branches : -${TREE_BAD_COINS} pièces !`, 'BAD')
       } else {
@@ -442,7 +442,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             log(s, `${p.name} trouve une ÉTOILE dans le bloc caché !!`, 'GOOD')
             popup(s, '🎁 Bloc caché', '⭐ INCROYABLE : une Étoile !', 'GOOD')
           } else {
-            addCoins(s, p, HIDDEN_BLOCK_COINS)
+            addCoins(p, HIDDEN_BLOCK_COINS)
             log(s, `${p.name} trouve ${HIDDEN_BLOCK_COINS} pièces dans le bloc caché`, 'GOOD')
             popup(s, '🎁 Bloc caché', `+${HIDDEN_BLOCK_COINS} pièces !`, 'GOOD')
           }
@@ -468,7 +468,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const p = current(s)
       const d = s.dice
       if (d.faceCoins !== 0) {
-        addCoins(s, p, d.faceCoins)
+        addCoins(p, d.faceCoins)
         log(
           s,
           `${p.name} ${d.faceCoins > 0 ? 'gagne' : 'perd'} ${Math.abs(d.faceCoins)} pièces (face du dé)`,
@@ -550,7 +550,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
         case 'TREE_GOOD': {
           if (choice.pick === 'COIN_FRUIT') {
-            addCoins(s, p, TREE_COIN_FRUIT)
+            addCoins(p, TREE_COIN_FRUIT)
             log(s, `${p.name} croque le Fruit Pièces : +${TREE_COIN_FRUIT} pièces`, 'GOOD')
             popup(s, '🌳 Arbre généreux', `Fruit Pièces : +${TREE_COIN_FRUIT} pièces !`, 'GOOD')
           } else {
@@ -566,7 +566,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             if (p.coins < BOO_STAR_COST) {
               popup(s, '👻 Boo', `Il faut ${BOO_STAR_COST} pièces pour voler une Étoile…`, 'NEUTRAL')
             } else {
-              addCoins(s, p, -BOO_STAR_COST)
+              addCoins(p, -BOO_STAR_COST)
               s.pending = { kind: 'BOO_PICK_VICTIM', steal: 'STAR' }
             }
           } else {
@@ -590,14 +590,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             log(s, `Boo vole une ÉTOILE à ${target.name} pour ${p.name} !!`, 'GOOD')
             popup(s, '👻 Boo', `Boo rapporte une ÉTOILE volée à ${target.name} !`, 'GOOD')
           } else {
-            addCoins(s, p, BOO_STAR_COST)
+            addCoins(p, BOO_STAR_COST)
             popup(s, '👻 Boo', `${target.name} n'a pas d'Étoile. Boo te rembourse.`, 'NEUTRAL')
           }
           return s
         }
         case 'STAR': {
           if (choice.buy && p.coins >= STAR_COST) {
-            addCoins(s, p, -STAR_COST)
+            addCoins(p, -STAR_COST)
             p.stars += 1
             const others = STAR_SPOTS.filter((id) => id !== s.starSpaceId)
             s.starSpaceId = pick(others)
