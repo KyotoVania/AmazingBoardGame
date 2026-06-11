@@ -9,7 +9,8 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import { SIGNPOST_FORK_IDS, getSpace } from '../../game/board'
-import { BOO_STAR_COST, ITEMS, STAR_COST, TREE_COIN_FRUIT } from '../../game/constants'
+import { ITEMS, TREE_COIN_FRUIT } from '../../game/constants'
+import { EVENT_CHARACTERS, type EventCharacterId } from '../../game/eventImages'
 import { effectiveSpaceType, getCurrentPlayer } from '../../game/reducer'
 import type { BadLuckOutcome, PendingAction, Player, PlayerId, PopupTone } from '../../game/types'
 import { useGame } from '../../game/useGameState'
@@ -21,33 +22,84 @@ const TONE_RING: Record<PopupTone, string> = {
   NEUTRAL: 'ring-gold-400/50',
 }
 
-/** Portrait + nom du « personnage » qui parle, selon l'événement. */
-function speakerFor(pending: PendingAction): { portrait: string; name: string; tone: PopupTone } {
+interface Speaker {
+  portrait: string
+  imageUrl: string | null
+  name: string
+  tone: PopupTone
+}
+
+/** Devine le personnage d'un POPUP générique d'après son titre. */
+function popupCharacter(title: string): EventCharacterId | null {
+  const t = title.toLowerCase()
+  if (t.includes('kamek')) return 'KAMEK'
+  if (t.includes('boo')) return 'BOO'
+  if (t.includes('taupe')) return 'MOLE'
+  if (t.includes('trou') || t.includes('coincé') || t.includes('libéré')) return 'PIT'
+  if (t.includes('arbre maudit')) return 'TREE_BAD'
+  if (t.includes('arbre généreux')) return 'TREE_GOOD'
+  if (t.includes('panneau')) return 'SIGNPOST'
+  if (t.includes('étoile')) return 'STAR'
+  if (t.includes('champignon')) return 'MUSHROOM'
+  return null
+}
+
+function fromRegistry(id: EventCharacterId, tone: PopupTone, name?: string): Speaker {
+  const def = EVENT_CHARACTERS[id]
+  return { portrait: def.emoji, imageUrl: def.imageUrl, name: name ?? def.name, tone }
+}
+
+/** Portrait (image du registre ou emoji) + nom du personnage qui parle. */
+function speakerFor(pending: PendingAction): Speaker {
   switch (pending.kind) {
     case 'POPUP': {
       const emoji = pending.title.match(/^\p{Extended_Pictographic}+/u)?.[0]
-      return {
-        portrait: emoji ?? '❕',
-        name: emoji ? pending.title.slice(emoji.length).trim() : pending.title,
-        tone: pending.tone,
-      }
+      const name = emoji ? pending.title.slice(emoji.length).trim() : pending.title
+      const charId = popupCharacter(pending.title)
+      if (charId) return fromRegistry(charId, pending.tone, name)
+      return { portrait: emoji ?? '❕', imageUrl: null, name, tone: pending.tone }
     }
     case 'CHOOSE_SIP_TARGET':
-      return { portrait: '🍻', name: 'Distribution générale', tone: 'GOOD' }
+      return { portrait: '🍻', imageUrl: null, name: 'Distribution générale', tone: 'GOOD' }
     case 'TREE_GOOD_CHOICE':
-      return { portrait: '🌳', name: "L'Arbre généreux", tone: 'GOOD' }
+      return fromRegistry('TREE_GOOD', 'GOOD')
     case 'BOO_PROMPT':
     case 'BOO_PICK_VICTIM':
-      return { portrait: '👻', name: 'Boo', tone: 'NEUTRAL' }
+      return fromRegistry('BOO', 'NEUTRAL')
     case 'STAR_PROMPT':
-      return { portrait: '⭐', name: 'Toadette', tone: 'GOOD' }
+      return fromRegistry('TOADETTE', 'GOOD')
     case 'VS_WAGER':
-      return { portrait: '⚔️', name: 'Case VS', tone: 'NEUTRAL' }
+      return { portrait: '⚔️', imageUrl: null, name: 'Case VS', tone: 'NEUTRAL' }
     case 'MOLE_PROMPT':
-      return { portrait: '🦫', name: 'Topi Taupe', tone: 'NEUTRAL' }
+      return fromRegistry('MOLE', 'NEUTRAL')
     case 'BAD_LUCK_WHEEL':
-      return { portrait: '🔮', name: 'La Roue de Kamek', tone: 'BAD' }
+      return fromRegistry('KAMEK', 'BAD', 'La Roue de Kamek')
   }
+}
+
+/** Portrait avec image custom et repli automatique sur l'emoji. */
+function Portrait({ speaker }: { speaker: Speaker }) {
+  const [failed, setFailed] = useState(false)
+  const showImage = speaker.imageUrl && !failed
+  return (
+    <motion.div
+      initial={{ scale: 0, rotate: -12 }}
+      animate={{ scale: 1, rotate: 0 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 16, delay: 0.08 }}
+      className="bg-night-800 grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl text-5xl shadow-inner"
+    >
+      {showImage ? (
+        <img
+          src={speaker.imageUrl!}
+          alt={speaker.name}
+          onError={() => setFailed(true)}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        speaker.portrait
+      )}
+    </motion.div>
+  )
 }
 
 export function EventPopup() {
@@ -73,15 +125,7 @@ export function EventPopup() {
             className={`bg-night-900/95 pointer-events-auto w-full max-w-3xl rounded-3xl p-5 shadow-2xl ring-4 backdrop-blur-md ${TONE_RING[speaker.tone]}`}
           >
             <div className="flex items-start gap-4">
-              {/* Portrait du personnage */}
-              <motion.div
-                initial={{ scale: 0, rotate: -12 }}
-                animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 16, delay: 0.08 }}
-                className="bg-night-800 grid h-20 w-20 shrink-0 place-items-center rounded-2xl text-5xl shadow-inner"
-              >
-                {speaker.portrait}
-              </motion.div>
+              <Portrait speaker={speaker} />
               <div className="min-w-0 flex-1 text-left">
                 <p className="font-display text-gold-300 text-2xl tracking-wide">{speaker.name}</p>
                 <PendingContent pending={pending} player={player} />
@@ -158,10 +202,10 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
               🪙 Voler des pièces — gratuit
             </WideButton>
             <WideButton
-              disabled={player.coins < BOO_STAR_COST || !anyStarTarget}
+              disabled={player.coins < state.config.booStarCost || !anyStarTarget}
               onClick={() => resolvePending({ kind: 'BOO', action: 'STEAL_STAR' })}
             >
-              ⭐ Voler une Étoile — {BOO_STAR_COST} pièces
+              ⭐ Voler une Étoile — {state.config.booStarCost} pièces
             </WideButton>
             <WideButton ghost onClick={() => resolvePending({ kind: 'BOO', action: 'DECLINE' })}>
               Non merci, passe ton chemin
@@ -191,14 +235,14 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
       return (
         <>
           <p className="text-cream/90 mt-1 text-lg font-bold">
-            « Une Étoile pour {STAR_COST} pièces, ça te dit ? » (tu as {player.coins} 🪙)
+            « Une Étoile pour {state.config.starCost} pièces, ça te dit ? » (tu as {player.coins} 🪙)
           </p>
           <div className="mt-3 flex gap-3">
             <WideButton
-              disabled={player.coins < STAR_COST}
+              disabled={player.coins < state.config.starCost}
               onClick={() => resolvePending({ kind: 'STAR', buy: true })}
             >
-              ⭐ ACHETER — {STAR_COST} 🪙
+              ⭐ ACHETER — {state.config.starCost} 🪙
             </WideButton>
             <WideButton ghost onClick={() => resolvePending({ kind: 'STAR', buy: false })}>
               Plus tard…

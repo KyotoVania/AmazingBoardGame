@@ -6,8 +6,6 @@
 
 import {
   BAD_LUCK_COINS,
-  BLUE_COINS,
-  BOO_STAR_COST,
   BOO_STEAL_COINS,
   DEFAULT_ROUNDS,
   DICE_BLOCKS,
@@ -22,23 +20,17 @@ import {
   LUCKY_COINS,
   MAX_INVENTORY,
   MINIGAME_CATEGORIES,
-  MINIGAMES,
   MOLE_COST_MAX,
   MOLE_COST_MIN,
-  PIT_ESCAPE_MIN,
   PODIUM_LAYOUTS,
-  RED_COINS,
-  SIP_MINUS_AMOUNT,
-  SIP_PLUS_AMOUNT,
   START_COINS,
-  STAR_COST,
   TREE_BAD_BACK_MAX,
   TREE_BAD_BACK_MIN,
   TREE_BAD_COINS,
   TREE_COIN_FRUIT,
   VS_SPLIT,
   VS_WAGERS,
-  WALL_INITIAL_STRENGTH,
+  defaultGameConfig,
 } from './constants'
 import {
   BOARD,
@@ -72,6 +64,7 @@ export function createInitialState(): GameState {
   return {
     mode: 'LIVE',
     phase: 'LOBBY',
+    config: defaultGameConfig(),
     round: 1,
     maxRounds: DEFAULT_ROUNDS,
     players: [],
@@ -166,7 +159,7 @@ function rerollSignposts(s: GameState): void {
 
 /** Reconstruit les murs à pleine solidité ([ADAPTATION] : à chaque manche). */
 function resetWalls(s: GameState): void {
-  for (const id of WALL_SPACE_IDS) s.walls[id] = WALL_INITIAL_STRENGTH
+  for (const id of WALL_SPACE_IDS) s.walls[id] = s.config.wallStrength
 }
 
 /** Prépare un lancer : face résolue AVANT l'animation 3D. */
@@ -302,14 +295,14 @@ function landOnSpace(s: GameState): void {
       popup(s, '🏁 Case Départ', 'Rien ne se passe ici. Profites-en pour souffler.', 'NEUTRAL')
       break
     case 'BLUE':
-      addCoins(p, BLUE_COINS)
-      log(s, `${p.name} gagne ${BLUE_COINS} pièces (case bleue)`, 'GOOD')
-      popup(s, '🔵 Case Bleue', `+${BLUE_COINS} pièces !`, 'GOOD')
+      addCoins(p, s.config.blueCoins)
+      log(s, `${p.name} gagne ${s.config.blueCoins} pièces (case bleue)`, 'GOOD')
+      popup(s, '🔵 Case Bleue', `+${s.config.blueCoins} pièces !`, 'GOOD')
       break
     case 'RED':
-      addCoins(p, -RED_COINS)
-      log(s, `${p.name} perd ${RED_COINS} pièces (case rouge)`, 'BAD')
-      popup(s, '🔴 Case Rouge', `-${RED_COINS} pièces…`, 'BAD')
+      addCoins(p, -s.config.redCoins)
+      log(s, `${p.name} perd ${s.config.redCoins} pièces (case rouge)`, 'BAD')
+      popup(s, '🔴 Case Rouge', `-${s.config.redCoins} pièces…`, 'BAD')
       break
     case 'ITEM': {
       if (p.inventory.length >= MAX_INVENTORY) {
@@ -362,13 +355,13 @@ function landOnSpace(s: GameState): void {
       break
     }
     case 'SIP_PLUS':
-      p.sipsTaken += SIP_PLUS_AMOUNT
-      setFx(s, 'SIPS', p, p, SIP_PLUS_AMOUNT)
-      log(s, `${p.name} boit ${SIP_PLUS_AMOUNT} gorgées !`, 'BAD')
-      popup(s, '🍺 Case Gorgées', `Bois ${SIP_PLUS_AMOUNT} gorgées !`, 'BAD')
+      p.sipsTaken += s.config.sipPlus
+      setFx(s, 'SIPS', p, p, s.config.sipPlus)
+      log(s, `${p.name} boit ${s.config.sipPlus} gorgées !`, 'BAD')
+      popup(s, '🍺 Case Gorgées', `Bois ${s.config.sipPlus} gorgées !`, 'BAD')
       break
     case 'SIP_MINUS':
-      s.pending = { kind: 'CHOOSE_SIP_TARGET', sips: SIP_MINUS_AMOUNT }
+      s.pending = { kind: 'CHOOSE_SIP_TARGET', sips: s.config.sipMinus }
       break
     case 'EVENT':
       resolveEvent(s, space, wasBackward)
@@ -418,7 +411,7 @@ function resolveEvent(s: GameState, space: BoardSpace, wasBackward: boolean): vo
       popup(
         s,
         '🕳️ LE TROU',
-        `Tu tombes dedans ! Il faudra un lancer total ≥ ${PIT_ESCAPE_MIN} pour en sortir, sinon tu restes coincé.`,
+        `Tu tombes dedans ! Il faudra un lancer total ≥ ${s.config.pitEscapeMin} pour en sortir, sinon tu restes coincé.`,
         'BAD',
       )
       break
@@ -455,6 +448,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (action.players.length !== PLAYER_IDS.length) return state
       const fresh = createInitialState()
       fresh.mode = state.mode
+      fresh.config = structuredClone(s.config)
       fresh.maxRounds = action.maxRounds
       fresh.players = action.players.map((cfg, i) => ({
         id: PLAYER_IDS[i],
@@ -592,13 +586,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
       // Le trou : il faut un lancer suffisant pour s'en extirper
       if (p.trapped) {
-        if (d.steps < PIT_ESCAPE_MIN) {
-          log(s, `🕳️ ${p.name} reste coincé dans le trou (${d.steps} < ${PIT_ESCAPE_MIN})`, 'BAD')
+        if (d.steps < s.config.pitEscapeMin) {
+          log(s, `🕳️ ${p.name} reste coincé dans le trou (${d.steps} < ${s.config.pitEscapeMin})`, 'BAD')
           s.phase = 'SPACE_ACTION'
           popup(
             s,
             '🕳️ Toujours coincé !',
-            `Il fallait ≥ ${PIT_ESCAPE_MIN} et tu as fait ${d.steps}… Tu restes dans le trou.`,
+            `Il fallait ≥ ${s.config.pitEscapeMin} et tu as fait ${d.steps}… Tu restes dans le trou.`,
             'BAD',
           )
           return s
@@ -707,7 +701,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           return s
         }
         case 'SIP_TARGET': {
-          const sips = pending.kind === 'CHOOSE_SIP_TARGET' ? pending.sips : SIP_MINUS_AMOUNT
+          const sips = pending.kind === 'CHOOSE_SIP_TARGET' ? pending.sips : s.config.sipMinus
           const target = playerById(s, choice.targetId)
           if (target.id === p.id) return state
           target.sipsTaken += sips
@@ -732,10 +726,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           if (choice.action === 'STEAL_COINS') {
             s.pending = { kind: 'BOO_PICK_VICTIM', steal: 'COINS' }
           } else if (choice.action === 'STEAL_STAR') {
-            if (p.coins < BOO_STAR_COST) {
-              popup(s, '👻 Boo', `Il faut ${BOO_STAR_COST} pièces pour voler une Étoile…`, 'NEUTRAL')
+            if (p.coins < s.config.booStarCost) {
+              popup(s, '👻 Boo', `Il faut ${s.config.booStarCost} pièces pour voler une Étoile…`, 'NEUTRAL')
             } else {
-              addCoins(p, -BOO_STAR_COST)
+              addCoins(p, -s.config.booStarCost)
               s.pending = { kind: 'BOO_PICK_VICTIM', steal: 'STAR' }
             }
           } else {
@@ -761,20 +755,20 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
             log(s, `Boo vole une ÉTOILE à ${target.name} pour ${p.name} !!`, 'GOOD')
             popup(s, '👻 Boo', `Boo rapporte une ÉTOILE volée à ${target.name} !`, 'GOOD')
           } else {
-            addCoins(p, BOO_STAR_COST)
+            addCoins(p, s.config.booStarCost)
             popup(s, '👻 Boo', `${target.name} n'a pas d'Étoile. Boo te rembourse.`, 'NEUTRAL')
           }
           return s
         }
         case 'STAR': {
-          if (choice.buy && p.coins >= STAR_COST) {
-            addCoins(p, -STAR_COST)
+          if (choice.buy && p.coins >= s.config.starCost) {
+            addCoins(p, -s.config.starCost)
             p.stars += 1
             setFx(s, 'STAR_BUY', p, p)
             const others = STAR_SPOTS.filter((id) => id !== s.starSpaceId)
             s.starSpaceId = pick(others)
             log(s, `⭐ ${p.name} achète une Étoile ! Toadette déménage…`, 'GOOD')
-            popup(s, '⭐ Étoile !', `${p.name} achète une Étoile pour ${STAR_COST} pièces !`, 'GOOD')
+            popup(s, '⭐ Étoile !', `${p.name} achète une Étoile pour ${s.config.starCost} pièces !`, 'GOOD')
           } else {
             continueOrLand(s)
           }
@@ -929,7 +923,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       if (!s.minigame || !s.minigame.category || s.minigame.title) return state
       if (s.phase !== 'MINIGAME_CATEGORY' && s.phase !== 'MINIGAME_TITLE') return state
       s.phase = 'MINIGAME_TITLE'
-      s.minigame.title = pick(MINIGAMES[s.minigame.category])
+      s.minigame.title = pick(s.config.minigames[s.minigame.category])
       log(s, `Minijeu tiré : ${s.minigame.title} !`, 'SYSTEM')
       return s
     }
@@ -1019,9 +1013,37 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return s
     }
 
+    case 'SET_CONFIG': {
+      // Éditable au lobby, ou à chaud en mode DEBUG (God Mode)
+      if (s.phase !== 'LOBBY' && s.mode !== 'DEBUG') return state
+      const patch = action.patch
+      const num = (v: number | undefined, fallback: number, min = 0) =>
+        v === undefined || Number.isNaN(v) ? fallback : Math.max(min, Math.round(v))
+      s.config = {
+        blueCoins: num(patch.blueCoins, s.config.blueCoins),
+        redCoins: num(patch.redCoins, s.config.redCoins),
+        starCost: num(patch.starCost, s.config.starCost, 1),
+        booStarCost: num(patch.booStarCost, s.config.booStarCost, 1),
+        sipPlus: num(patch.sipPlus, s.config.sipPlus),
+        sipMinus: num(patch.sipMinus, s.config.sipMinus),
+        pitEscapeMin: num(patch.pitEscapeMin, s.config.pitEscapeMin, 1),
+        wallStrength: num(patch.wallStrength, s.config.wallStrength, 1),
+        minigames: patch.minigames
+          ? {
+              '1v1': patch.minigames['1v1'].filter(Boolean).length > 0 ? patch.minigames['1v1'].filter(Boolean) : s.config.minigames['1v1'],
+              '2v2': patch.minigames['2v2'].filter(Boolean).length > 0 ? patch.minigames['2v2'].filter(Boolean) : s.config.minigames['2v2'],
+              FFA: patch.minigames.FFA.filter(Boolean).length > 0 ? patch.minigames.FFA.filter(Boolean) : s.config.minigames.FFA,
+            }
+          : s.config.minigames,
+      }
+      log(s, '⚙️ Configuration mise à jour', 'SYSTEM')
+      return s
+    }
+
     case 'RESTART': {
       const fresh = createInitialState()
       fresh.mode = s.mode
+      fresh.config = structuredClone(s.config)
       return fresh
     }
 

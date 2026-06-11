@@ -7,7 +7,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
 import { BOARD, getSpace } from '../../game/board'
-import { CHARACTERS, DICE_BLOCKS, ITEMS, PIT_ESCAPE_MIN } from '../../game/constants'
+import { CHARACTERS, DICE_BLOCKS, ITEMS } from '../../game/constants'
 import { effectiveSpaceType, getCurrentPlayer } from '../../game/reducer'
 import type { DiceBlockId, ItemId, Player } from '../../game/types'
 import { useGame } from '../../game/useGameState'
@@ -105,8 +105,8 @@ function PreRollBar({ player }: { player: Player }) {
 
       {player.trapped && (
         <div className="mt-3 rounded-xl bg-red-500/15 px-4 py-2 text-sm font-extrabold text-red-300">
-          🕳️ {player.name} est au fond du trou ! Il faut un lancer total ≥ {PIT_ESCAPE_MIN} pour
-          sortir, sinon tu restes coincé.
+          🕳️ {player.name} est au fond du trou ! Il faut un lancer total ≥ {state.config.pitEscapeMin}{' '}
+          pour sortir, sinon tu restes coincé.
         </div>
       )}
 

@@ -5,12 +5,13 @@
 // ============================================================
 
 import { animated, easings, useSpring } from '@react-spring/three'
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { spaceWorldPos } from '../../game/board'
 import { CHARACTERS } from '../../game/constants'
 import type { Player } from '../../game/types'
+import { FittedModel } from './Models'
 import { avatarTextureCache, circularImageTexture, spriteTexture } from './textures'
 
 /** Décalage par joueur pour éviter l'empilement sur une même case. */
@@ -29,10 +30,12 @@ interface Props {
   isCurrent: boolean
   /** Case cible du saut en cours (uniquement pour le pion qui bouge). */
   hopTo: string | null
+  /** Modèle .glb custom (Config Panel) remplaçant le pion par défaut. */
+  modelUrl: string | null
   onHopDone: () => void
 }
 
-export function PlayerToken3D({ player, index, isCurrent, hopTo, onHopDone }: Props) {
+export function PlayerToken3D({ player, index, isCurrent, hopTo, modelUrl, onHopDone }: Props) {
   const offset = OFFSETS[index % OFFSETS.length]
   const targetId = isCurrent && hopTo ? hopTo : player.currentSpaceId
 
@@ -86,31 +89,46 @@ export function PlayerToken3D({ player, index, isCurrent, hopTo, onHopDone }: Pr
 
   return (
     <animated.group position-x={x} position-y={y} position-z={z}>
-      {/* socle */}
-      <mesh castShadow receiveShadow position={[0, 0.05, 0]}>
-        <cylinderGeometry args={[0.26, 0.3, 0.1, 24]} />
-        <meshStandardMaterial color={player.color} roughness={0.5} metalness={0.1} />
-      </mesh>
-      {/* corps galbé (profil meeple au tour) */}
-      <mesh castShadow position={[0, 0.38, 0]}>
-        <coneGeometry args={[0.24, 0.6, 24]} />
-        <meshStandardMaterial color={player.color} roughness={0.22} metalness={0.12} />
-      </mesh>
-      {/* collerette */}
-      <mesh castShadow position={[0, 0.62, 0]}>
-        <torusGeometry args={[0.12, 0.045, 12, 24]} />
-        <meshStandardMaterial color={player.color} roughness={0.25} metalness={0.15} />
-      </mesh>
-      {/* tête vernie */}
-      <mesh castShadow position={[0, 0.78, 0]}>
-        <sphereGeometry args={[0.17, 28, 20]} />
-        <meshStandardMaterial color={player.color} roughness={0.18} metalness={0.12} />
-      </mesh>
-      <sprite position={[0, 1.26, 0]} scale={avatarTex ? [0.66, 0.66, 0.66] : [0.5, 0.5, 0.5]}>
+      {modelUrl ? (
+        // Modèle .glb custom : normalisé par FittedModel, pion par défaut en attendant
+        <Suspense fallback={<DefaultPawn color={player.color} />}>
+          <FittedModel url={modelUrl} height={1.05} />
+        </Suspense>
+      ) : (
+        <DefaultPawn color={player.color} />
+      )}
+      <sprite
+        position={[0, modelUrl ? 1.5 : 1.26, 0]}
+        scale={avatarTex ? [0.66, 0.66, 0.66] : [0.5, 0.5, 0.5]}
+      >
         <spriteMaterial map={headTex} transparent depthWrite={false} />
       </sprite>
       {isCurrent && <CurrentRing color={player.color} />}
     </animated.group>
+  )
+}
+
+/** Le pion par défaut : socle + corps galbé + collerette + tête vernie. */
+function DefaultPawn({ color }: { color: string }) {
+  return (
+    <group>
+      <mesh castShadow receiveShadow position={[0, 0.05, 0]}>
+        <cylinderGeometry args={[0.26, 0.3, 0.1, 24]} />
+        <meshStandardMaterial color={color} roughness={0.5} metalness={0.1} />
+      </mesh>
+      <mesh castShadow position={[0, 0.38, 0]}>
+        <coneGeometry args={[0.24, 0.6, 24]} />
+        <meshStandardMaterial color={color} roughness={0.22} metalness={0.12} />
+      </mesh>
+      <mesh castShadow position={[0, 0.62, 0]}>
+        <torusGeometry args={[0.12, 0.045, 12, 24]} />
+        <meshStandardMaterial color={color} roughness={0.25} metalness={0.15} />
+      </mesh>
+      <mesh castShadow position={[0, 0.78, 0]}>
+        <sphereGeometry args={[0.17, 28, 20]} />
+        <meshStandardMaterial color={color} roughness={0.18} metalness={0.12} />
+      </mesh>
+    </group>
   )
 }
 

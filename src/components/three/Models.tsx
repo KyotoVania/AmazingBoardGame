@@ -1,0 +1,102 @@
+// ============================================================
+// Models.tsx — Gestion des modèles .glb chargés à chaud :
+//   · ModelsProvider : registre HORS GameState (les objets Three
+//     ne sont pas sérialisables) — slot → URL (objectURL ou
+//     chemin public comme /models/pion.glb).
+//   · FittedModel : charge un .glb, le normalise (échelle à
+//     hauteur cible, posé au sol, centré) et active les ombres.
+// ============================================================
+
+import { useGLTF } from '@react-three/drei'
+import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import * as THREE from 'three'
+import type { PlayerId } from '../../game/types'
+
+/** Emplacements pouvant recevoir un modèle custom. */
+export type ModelSlot = PlayerId | 'STAR' | 'DICE'
+
+interface ModelsApi {
+  models: Partial<Record<ModelSlot, string>>
+  setModel: (slot: ModelSlot, url: string | null) => void
+}
+
+const ModelsContext = createContext<ModelsApi | null>(null)
+
+export function ModelsProvider({ children }: { children: ReactNode }) {
+  const [models, setModels] = useState<Partial<Record<ModelSlot, string>>>({})
+
+  const api = useMemo<ModelsApi>(
+    () => ({
+      models,
+      setModel: (slot, url) =>
+        setModels((prev) => {
+          const old = prev[slot]
+          // libère les objectURL remplacés (pas les chemins /models/…)
+          if (old && old.startsWith('blob:') && old !== url) URL.revokeObjectURL(old)
+          const next = { ...prev }
+          if (url) next[slot] = url
+          else delete next[slot]
+          return next
+        }),
+    }),
+    [models],
+  )
+
+  return <ModelsContext.Provider value={api}>{children}</ModelsContext.Provider>
+}
+
+export function useModels(): ModelsApi {
+  const ctx = useContext(ModelsContext)
+  if (!ctx) throw new Error('useModels doit être appelé sous <ModelsProvider>')
+  return ctx
+}
+
+// ---------- Le modèle normalisé (à utiliser DANS le Canvas) ----------
+
+interface FittedProps {
+  url: string
+  /** Hauteur cible en unités monde. */
+  height?: number
+  /** Teinte optionnelle appliquée aux matériaux (couleur du joueur). */
+  tint?: string | null
+}
+
+export function FittedModel({ url, height = 1.0, tint = null }: FittedProps) {
+  const { scene } = useGLTF(url)
+
+  const obj = useMemo(() => {
+    const clone = scene.clone(true)
+    // échelle → hauteur cible
+    const box = new THREE.Box3().setFromObject(clone)
+    const size = new THREE.Vector3()
+    box.getSize(size)
+    const scale = height / Math.max(size.y, 0.001)
+    clone.scale.setScalar(scale)
+    // posé au sol, centré en XZ
+    const box2 = new THREE.Box3().setFromObject(clone)
+    clone.position.set(
+      -(box2.min.x + box2.max.x) / 2,
+      -box2.min.y,
+      -(box2.min.z + box2.max.z) / 2,
+    )
+    // ombres + teinte éventuelle
+    clone.traverse((node) => {
+      const mesh = node as THREE.Mesh
+      if (mesh.isMesh) {
+        mesh.castShadow = true
+        mesh.receiveShadow = true
+        if (tint) {
+          const mat = mesh.material as THREE.MeshStandardMaterial
+          if (mat && 'color' in mat) {
+            const tinted = mat.clone()
+            tinted.color.lerp(new THREE.Color(tint), 0.35)
+            mesh.material = tinted
+          }
+        }
+      }
+    })
+    return clone
+  }, [scene, height, tint])
+
+  return <primitive object={obj} />
+}

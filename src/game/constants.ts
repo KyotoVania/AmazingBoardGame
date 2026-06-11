@@ -485,3 +485,22 @@ export const DEFAULT_LOBBY: LobbyPlayerConfig[] = [
   { name: 'Équipe Verte', color: PLAYER_COLORS[2], character: 'YOSHI' },
   { name: 'Équipe Jaune', color: PLAYER_COLORS[3], character: 'PEACH' },
 ]
+
+// ---------- Configuration runtime par défaut (Config Panel) ----------
+
+import type { GameConfig } from './types'
+
+/** Valeurs par défaut des règles ajustables — alignées sur les constantes. */
+export function defaultGameConfig(): GameConfig {
+  return {
+    blueCoins: BLUE_COINS,
+    redCoins: RED_COINS,
+    starCost: STAR_COST,
+    booStarCost: BOO_STAR_COST,
+    sipPlus: SIP_PLUS_AMOUNT,
+    sipMinus: SIP_MINUS_AMOUNT,
+    pitEscapeMin: PIT_ESCAPE_MIN,
+    wallStrength: WALL_INITIAL_STRENGTH,
+    minigames: structuredClone(MINIGAMES),
+  }
+}

@@ -5,7 +5,7 @@
 
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
-import { CHARACTERS, MINIGAMES, MINIGAME_CATEGORIES } from '../../game/constants'
+import { CHARACTERS, MINIGAME_CATEGORIES } from '../../game/constants'
 import type { PlayerId } from '../../game/types'
 import { useGame } from '../../game/useGameState'
 
@@ -81,7 +81,7 @@ function TitleStage() {
   const { state, spinTitle, goPlay } = useGame()
   const mg = state.minigame!
   const [settled, setSettled] = useState(false)
-  const items = mg.category ? MINIGAMES[mg.category] : []
+  const items = mg.category ? state.config.minigames[mg.category] : []
 
   return (
     <div>

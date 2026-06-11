@@ -4,7 +4,7 @@
 // d'un embranchement sont cliquables.
 // ============================================================
 
-import { useMemo, useRef, useState } from 'react'
+import { Suspense, useMemo, useRef, useState } from 'react'
 import { Html, Sparkles } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -24,6 +24,7 @@ import { effectiveSpaceType, getCurrentPlayer } from '../../game/reducer'
 import type { GameState, SpaceType } from '../../game/types'
 import { grassTexture, labelTexture, spriteTexture, woodTexture } from './textures'
 import { SPACE_TYPE_LABELS } from '../ui/labels'
+import { FittedModel } from './Models'
 
 const SPACE_COLORS: Record<SpaceType, string> = {
   START: '#7cb342',
@@ -52,9 +53,11 @@ const SPACE_LABELS: Partial<Record<SpaceType, { text: string; color?: string }>>
 interface BoardProps {
   state: GameState
   chooseFork: (spaceId: string) => void
+  /** Modèle .glb custom pour l'Étoile (Config Panel). */
+  starModelUrl?: string | null
 }
 
-export function Board3D({ state, chooseFork }: BoardProps) {
+export function Board3D({ state, chooseFork, starModelUrl = null }: BoardProps) {
   const player = getCurrentPlayer(state)
   const debug = state.mode === 'DEBUG'
   const [hovered, setHovered] = useState<string | null>(null)
@@ -81,7 +84,7 @@ export function Board3D({ state, chooseFork }: BoardProps) {
       ))}
       <Walls3D walls={state.walls} />
       {debug && hovered && <DebugSpaceTip id={hovered} />}
-      <StarBeacon spaceId={state.starSpaceId} />
+      <StarBeacon spaceId={state.starSpaceId} modelUrl={starModelUrl} />
       <BooGhost />
       <MoleNpc />
       <EventTrees />
@@ -269,7 +272,7 @@ function Space3D({ id, type, isCurrent, isForkCandidate, onPick, onHover }: Spac
 
 // ---------- Points d'intérêt ----------
 
-function StarBeacon({ spaceId }: { spaceId: string }) {
+function StarBeacon({ spaceId, modelUrl }: { spaceId: string; modelUrl?: string | null }) {
   const ref = useRef<THREE.Group>(null)
   const tex = useMemo(() => spriteTexture('⭐'), [])
   const [x, , z] = spaceWorldPos(spaceId)
@@ -281,9 +284,15 @@ function StarBeacon({ spaceId }: { spaceId: string }) {
   return (
     <group position={[x, 0, z]}>
       <group ref={ref}>
-        <sprite scale={[1.25, 1.25, 1.25]}>
-          <spriteMaterial map={tex} transparent depthWrite={false} />
-        </sprite>
+        {modelUrl ? (
+          <Suspense fallback={null}>
+            <FittedModel url={modelUrl} height={1.3} />
+          </Suspense>
+        ) : (
+          <sprite scale={[1.25, 1.25, 1.25]}>
+            <spriteMaterial map={tex} transparent depthWrite={false} />
+          </sprite>
+        )}
       </group>
       <pointLight position={[0, 2, 0]} color="#ffd54a" intensity={6} distance={6} />
       <Sparkles count={26} scale={[2.2, 2.6, 2.2]} position={[0, 1.5, 0]} size={3.4} speed={0.5} color="#ffe082" />

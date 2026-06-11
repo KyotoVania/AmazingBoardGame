@@ -3,8 +3,10 @@
 // phase + toggle LIVE/DEBUG (touche ~ ou bouton invisible).
 // ============================================================
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { GameCanvas } from './components/three/GameCanvas'
+import { ModelsProvider } from './components/three/Models'
+import { ConfigPanel } from './components/ui/ConfigPanel'
 import { ActionBar } from './components/ui/ActionBar'
 import { DebugPanel } from './components/ui/DebugPanel'
 import { EventPopup } from './components/ui/EventPopup'
@@ -22,7 +24,9 @@ import { GameProvider, useGame } from './game/useGameState'
 export default function App() {
   return (
     <GameProvider>
-      <Shell />
+      <ModelsProvider>
+        <Shell />
+      </ModelsProvider>
     </GameProvider>
   )
 }
@@ -30,6 +34,9 @@ export default function App() {
 function Shell() {
   const api = useGame()
   const { state, debug } = api
+  const [configOpen, setConfigOpen] = useState(false)
+  // ⚙️ accessible au lobby, et en partie uniquement en God Mode
+  const canConfigure = state.phase === 'LOBBY' || state.mode === 'DEBUG'
 
   // Toggle caché LIVE <-> DEBUG : touche ~ (DebugMode.md)
   useEffect(() => {
@@ -72,6 +79,19 @@ function Shell() {
         onClick={() => debug.toggleMode()}
         className="absolute top-0 left-0 z-50 h-9 w-9 opacity-0"
       />
+
+      {canConfigure && (
+        <button
+          onClick={() => setConfigOpen(true)}
+          title="Configuration"
+          className={`bg-night-900/85 text-gold-300 hover:bg-night-800 absolute top-3 z-50 grid h-10 w-10 place-items-center rounded-full text-xl shadow-lg backdrop-blur-sm ${
+            state.mode === 'DEBUG' && state.phase !== 'LOBBY' ? 'right-44' : 'right-3'
+          }`}
+        >
+          ⚙️
+        </button>
+      )}
+      {configOpen && canConfigure && <ConfigPanel onClose={() => setConfigOpen(false)} />}
 
       {state.mode === 'DEBUG' && (
         <>

@@ -11,10 +11,13 @@ import type { GameApi } from '../../game/useGameState'
 import { Board3D } from './Board3D'
 import { CameraRig } from './CameraRig'
 import { Dice3D } from './Dice3D'
+import { useModels } from './Models'
 import { PlayerToken3D } from './PlayerToken3D'
 
 export function GameCanvas({ api }: { api: GameApi }) {
   const { state } = api
+  // lu HORS du Canvas (le contexte React ne traverse pas le renderer R3F)
+  const { models } = useModels()
   const player = getCurrentPlayer(state)
 
   let dicePos: [number, number, number] = [0, 0, 0]
@@ -46,12 +49,13 @@ export function GameCanvas({ api }: { api: GameApi }) {
       />
       {/* contre-jour froid pour détacher les silhouettes */}
       <directionalLight position={[-14, 9, -16]} intensity={0.45} color="#7fa3ff" />
-      <Board3D state={state} chooseFork={api.chooseFork} />
+      <Board3D state={state} chooseFork={api.chooseFork} starModelUrl={models.STAR ?? null} />
       {state.players.map((p, i) => (
         <PlayerToken3D
           key={p.id}
           player={p}
           index={i}
+          modelUrl={models[p.id] ?? null}
           isCurrent={i === state.currentPlayerIndex}
           hopTo={
             state.phase === 'MOVING' && i === state.currentPlayerIndex

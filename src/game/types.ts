@@ -295,6 +295,34 @@ export type PendingChoice =
   | { kind: 'MOLE'; pay: boolean; directions?: Record<string, number> }
   | { kind: 'BAD_LUCK_DONE' }
 
+// ---------- Configuration runtime (Config Panel) ----------
+
+/**
+ * Les règles AJUSTABLES sans rebuild, éditées dans le Config Panel
+ * (au lobby, ou en cours de partie en mode DEBUG). Les valeurs par
+ * défaut viennent de constants.ts (DEFAULT_GAME_CONFIG).
+ */
+export interface GameConfig {
+  /** Pièces gagnées sur case bleue. */
+  blueCoins: number
+  /** Pièces perdues sur case rouge. */
+  redCoins: number
+  /** Prix de l'Étoile chez Toadette. */
+  starCost: number
+  /** Prix du vol d'Étoile par Boo. */
+  booStarCost: number
+  /** Gorgées bues sur SIP_PLUS. */
+  sipPlus: number
+  /** Gorgées distribuées sur SIP_MINUS. */
+  sipMinus: number
+  /** Lancer minimum pour sortir du trou. */
+  pitEscapeMin: number
+  /** Solidité initiale du mur. */
+  wallStrength: number
+  /** Tables de minijeux par catégorie. */
+  minigames: MinigameTable
+}
+
 // ---------- État global ----------
 
 export type GameMode = 'LIVE' | 'DEBUG'
@@ -308,6 +336,8 @@ export interface LogEntry {
 export interface GameState {
   mode: GameMode
   phase: GamePhase
+  /** Règles ajustables (Config Panel). */
+  config: GameConfig
   /** Manche en cours (1-indexée). */
   round: number
   maxRounds: number
@@ -362,6 +392,7 @@ export type GameAction =
   | { type: 'SET_PODIUM'; groups: PlayerId[][] }
   | { type: 'CONTINUE' }
   | { type: 'BEGIN_ROUND' }
+  | { type: 'SET_CONFIG'; patch: Partial<GameConfig> }
   | { type: 'RESTART' }
   // ----- God Mode (DebugMode.md + extensions) -----
   | { type: 'DEBUG_SET_MODE'; mode: GameMode }
