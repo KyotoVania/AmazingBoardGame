@@ -1033,12 +1033,21 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
               'GOOD',
             )
           } else {
-            // refus (ou pas les moyens) : déviation si possible, sinon on campe
+            // refus (ou pas les moyens) : on continue DE FORCE par l'autre
+            // chemin s'il n'y en a qu'un, sinon retour au choix, sinon on campe
             const alternatives = movementCandidates(p, m).filter(
               (c) => c !== m.cameFrom && c !== pending.targetId,
             )
             log(s, `🚪 ${p.name} laisse le portail fermé.`, 'NEUTRAL')
-            if (alternatives.length >= 1) {
+            if (alternatives.length === 1) {
+              m.hopTo = alternatives[0] // saut armé : le OK relancera MOVING
+              popup(
+                s,
+                '🚪 Portail fermé',
+                'Pas de paiement, pas de passage — tu repars par l’autre chemin.',
+                'NEUTRAL',
+              )
+            } else if (alternatives.length > 1) {
               m.hopTo = null
               s.phase = 'FORK_CHOICE'
             } else {
