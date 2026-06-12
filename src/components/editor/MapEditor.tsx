@@ -542,7 +542,12 @@ export function MapEditor() {
                     !
                   </text>
                 )}
-                {(s.hasBoo || s.hasMole || s.hasShop || s.wall || s.gate || s.event === 'PIT') && (
+                {(s.hasBoo ||
+                  s.hasMole ||
+                  s.hasShop ||
+                  s.wall ||
+                  s.gate ||
+                  s.type === 'EVENT') && (
                   <text
                     y={-0.42}
                     textAnchor="middle"
@@ -559,7 +564,13 @@ export function MapEditor() {
                             ? '🧱'
                             : s.gate
                               ? '🚪'
-                              : '🕳️'}
+                              : s.event === 'PIT'
+                                ? '🕳️'
+                                : s.event === 'SIGNPOST'
+                                  ? '🪧'
+                                  : s.type === 'EVENT'
+                                    ? '🌳'
+                                    : ''}
                   </text>
                 )}
                 {vb.w < 16 && (
@@ -773,6 +784,51 @@ export function MapEditor() {
                   </option>
                 ))}
               </select>
+            )}
+            {selected.type === 'EVENT' && (selected.event ?? 'SIGNPOST') === 'SIGNPOST' && (
+              <div className="bg-night-900/70 rounded-lg p-2 text-xs font-bold">
+                <p className="text-cream/60">
+                  🪧 Un panneau DIRIGE le carrefour vers lequel pointe son{' '}
+                  <span className="text-gold-300">premier lien sortant</span> :
+                </p>
+                {selected.next.length === 0 ? (
+                  <p className="mt-1 text-red-300">✗ aucun lien sortant — relie-le au carrefour.</p>
+                ) : (
+                  <>
+                    <p className="mt-1">
+                      Gouverne : <span className="text-gold-300">{selected.next[0]}</span>{' '}
+                      {(byId.get(selected.next[0])?.next.length ?? 0) >= 2 ? (
+                        <span className="text-emerald-400">✓ carrefour</span>
+                      ) : (
+                        <span className="text-amber-300">⚠ pas un carrefour (panneau inactif)</span>
+                      )}
+                    </p>
+                    {selected.next.length > 1 && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                        <span className="text-cream/50">Cible :</span>
+                        {selected.next.map((n) => (
+                          <button
+                            key={n}
+                            onClick={() =>
+                              apply((d) => {
+                                const sd = d.seeds.find((x) => x.id === selected.id)
+                                if (sd) sd.next = [n, ...sd.next.filter((x) => x !== n)]
+                              })
+                            }
+                            className={`rounded px-1.5 py-0.5 ${
+                              selected.next[0] === n
+                                ? 'bg-gold-400 text-night-950'
+                                : 'bg-night-800 hover:bg-night-700'
+                            }`}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             )}
             {(
               [
