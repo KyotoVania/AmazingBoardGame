@@ -1,21 +1,39 @@
 // ============================================================
-// board.ts — Le plateau Woody Woods sous forme de graphe (~80
-// cases), retracé fidèlement depuis Docs/imgMap.png :
+// board.ts — Le plateau sous forme de graphe INJECTABLE.
+// Le plateau par défaut est Woody Woods (~80 cases, retracé depuis
+// Docs/imgMap.png) mais tout est reconstruit depuis un BoardDef :
+// l'éditeur de map (Atelier) peut injecter un plateau custom via
+// setActiveBoard(). Les exports gardent les MÊMES noms qu'avant —
+// bindings vivants + mutation en place : aucun importeur ne change.
+//
+// Woody Woods par défaut :
 //   - boucle extérieure complète (bas → ouest → nord → est)
 //   - bande centrale horizontale ouest → est
 //   - connecteur ouest (avec LE TROU) et connecteur centre
 //   - boucle intérieure sud-est (avec LE MUR sur le raccourci)
 //   - mini-boucle près du départ
-// Embranchements : 3 forks à PANNEAUX (la direction est dictée
-// par le panneau, règles réelles) + 2 forks LIBRES (choix).
-// Sens de circulation : anti-horaire (flèches de la map).
+// Embranchements : 3 forks à PANNEAUX (direction dictée, règles
+// réelles) + forks LIBRES (choix) aux jonctions bidirectionnelles.
 // ============================================================
 
 import type { BoardSpace } from './types'
 
-type SpaceSeed = Omit<BoardSpace, 'nextSpaces'> & { next: string[] }
+/** Une case telle qu'éditée : `next` = arêtes du sens de circulation. */
+export type BoardSeed = Omit<BoardSpace, 'nextSpaces'> & { next: string[] }
 
-const SEEDS: SpaceSeed[] = [
+/** Un plateau complet, sérialisable (éditeur de map / export JSON). */
+export interface BoardDef {
+  name: string
+  /** Échelle appliquée aux coordonnées des seeds pour le monde 3D. */
+  scale: number
+  seeds: BoardSeed[]
+  /** Tronçons praticables dans les deux sens : l'arête inverse est ajoutée. */
+  twoWayPairs: [string, string][]
+}
+
+// ---------- Woody Woods (plateau par défaut) ----------
+
+const SEEDS: BoardSeed[] = [
   // ----- Boucle extérieure : bord bas, vers l'ouest -----
   { id: 'o01', type: 'START', x: 8.0, y: 6.3, next: ['o02'] },
   { id: 'o02', type: 'BLUE', x: 6.9, y: 6.5, next: ['o03'] },
@@ -120,12 +138,6 @@ const SEEDS: SpaceSeed[] = [
 ]
 
 /**
- * Échelle du plateau : écarte les cases (les seeds sont tracés serrés
- * depuis imgMap) pour une map plus aérée et lisible.
- */
-export const BOARD_SCALE = 1.6
-
-/**
  * Tronçons praticables DANS LES DEUX SENS : les connecteurs et boucles
  * internes. Aux carrefours (jonctions avec la route principale), le
  * joueur choisit donc librement sa direction — interdiction du
@@ -138,80 +150,241 @@ const TWO_WAY_CHAINS: string[][] = [
   ['o45', 'l08', 'l07', 'l06', 'l05', 'l04', 'l03', 'l02', 'l01', 'm09'], // boucle muraille
 ]
 
-/** Le plateau, indexé par id de case. */
-export const BOARD: Record<string, BoardSpace> = Object.fromEntries(
-  SEEDS.map((s) => {
-    const { next, ...rest } = s
-    return [s.id, { ...rest, x: s.x * BOARD_SCALE, y: s.y * BOARD_SCALE, nextSpaces: [...next] }]
-  }),
-)
-
-// Ajoute les arêtes inverses manquantes des tronçons bidirectionnels.
-for (const chain of TWO_WAY_CHAINS) {
-  for (let i = 0; i < chain.length - 1; i++) {
-    const a = BOARD[chain[i]]
-    const b = BOARD[chain[i + 1]]
-    if (!a.nextSpaces.includes(b.id)) a.nextSpaces.push(b.id)
-    if (!b.nextSpaces.includes(a.id)) b.nextSpaces.push(a.id)
-  }
+/** Le plateau par défaut, sérialisable comme n'importe quel plateau custom. */
+export const WOODY_WOODS_DEF: BoardDef = {
+  name: 'Woody Woods',
+  scale: 1.6,
+  seeds: SEEDS,
+  twoWayPairs: TWO_WAY_CHAINS.flatMap((chain) =>
+    chain.slice(0, -1).map((a, i) => [a, chain[i + 1]] as [string, string]),
+  ),
 }
 
-export const SPACE_IDS: string[] = SEEDS.map((s) => s.id)
+// ---------- Exports vivants (reconstruits par setActiveBoard) ----------
+// Les Records/tableaux sont mutés EN PLACE et les scalaires sont des
+// `let` (bindings ES vivants) : les importeurs voient toujours le
+// plateau actif sans changer une ligne.
+
+export let BOARD_SCALE = WOODY_WOODS_DEF.scale
+
+export const BOARD: Record<string, BoardSpace> = {}
+
+export const SPACE_IDS: string[] = []
 
 /** Graphe inversé : pour le recul de l'arbre maudit. */
-export const PREV: Record<string, string[]> = (() => {
-  const prev: Record<string, string[]> = {}
-  for (const id of SPACE_IDS) prev[id] = []
-  for (const space of Object.values(BOARD)) {
-    for (const next of space.nextSpaces) prev[next].push(space.id)
-  }
-  return prev
-})()
+export const PREV: Record<string, string[]> = {}
 
 /** Emplacements candidats de l'Étoile (points jaunes de la map). */
-export const STAR_SPOTS: string[] = SEEDS.filter((s) => s.starSpot).map((s) => s.id)
+export const STAR_SPOTS: string[] = []
 
 /**
  * Les vraies cases de CHOIX : depuis au moins une case d'arrivée, il
- * reste ≥ 2 directions une fois le demi-tour exclu. (Les simples
- * nœuds de tronçon bidirectionnel — 2 sorties mais qui se réduisent
- * toujours à "continuer tout droit" — sont exclus.)
+ * reste ≥ 2 directions une fois le demi-tour exclu.
  */
-export const FORK_IDS: string[] = Object.values(BOARD)
-  .filter((space) => {
-    if (space.nextSpaces.length < 2) return false
-    const incomings = Object.values(BOARD)
-      .filter((p) => p.nextSpaces.includes(space.id))
-      .map((p) => p.id)
-    return incomings.some(
-      (from) => space.nextSpaces.filter((n) => n !== from).length >= 2,
-    )
-  })
-  .map((space) => space.id)
+export const FORK_IDS: string[] = []
 
 /**
  * Forks gouvernés par un PANNEAU (la case EVENT/SIGNPOST juste avant) :
  * la direction y est dictée par le panneau — règles réelles de Woody Woods.
- * Les autres forks restent au libre choix du joueur.
  */
-export const SIGNPOST_FORK_IDS: string[] = SEEDS.filter((s) => s.event === 'SIGNPOST').map(
-  (s) => s.next[0],
-)
+export const SIGNPOST_FORK_IDS: string[] = []
 
 /** Cases portant un mur destructible. */
-export const WALL_SPACE_IDS: string[] = SEEDS.filter((s) => s.wall).map((s) => s.id)
+export const WALL_SPACE_IDS: string[] = []
+
+/** Les cases événement devant les arbres. */
+export const TREE_GOOD_IDS: string[] = []
+export const TREE_BAD_IDS: string[] = []
 
 /** Case occupée par Topi Taupe. */
-export const MOLE_SPACE_ID: string | null = SEEDS.find((s) => s.hasMole)?.id ?? null
+export let MOLE_SPACE_ID: string | null = null
 
 /** Case de la boutique de Flutter. */
-export const SHOP_SPACE_ID: string | null = SEEDS.find((s) => s.hasShop)?.id ?? null
+export let SHOP_SPACE_ID: string | null = null
 
-/** Les 3 cases événement devant chaque arbre. */
-export const TREE_GOOD_IDS: string[] = SEEDS.filter((s) => s.event === 'TREE_GOOD').map((s) => s.id)
-export const TREE_BAD_IDS: string[] = SEEDS.filter((s) => s.event === 'TREE_BAD').map((s) => s.id)
+export let START_SPACE_ID = 'o01'
 
-export const START_SPACE_ID = 'o01'
+let activeDef: BoardDef = WOODY_WOODS_DEF
+
+/** Le BoardDef actuellement joué (défaut : Woody Woods). */
+export function getActiveBoardDef(): BoardDef {
+  return activeDef
+}
+
+/** Reconstruit tout le plateau actif depuis un BoardDef (validé en amont). */
+export function setActiveBoard(def: BoardDef): void {
+  activeDef = def
+  BOARD_SCALE = def.scale
+
+  for (const key of Object.keys(BOARD)) delete BOARD[key]
+  for (const seed of def.seeds) {
+    const { next, ...rest } = seed
+    BOARD[seed.id] = {
+      ...rest,
+      x: seed.x * def.scale,
+      y: seed.y * def.scale,
+      nextSpaces: [...next],
+    }
+  }
+  // Arêtes inverses des tronçons bidirectionnels
+  for (const [a, b] of def.twoWayPairs) {
+    const sa = BOARD[a]
+    const sb = BOARD[b]
+    if (!sa || !sb) continue
+    if (!sa.nextSpaces.includes(b)) sa.nextSpaces.push(b)
+    if (!sb.nextSpaces.includes(a)) sb.nextSpaces.push(a)
+  }
+
+  SPACE_IDS.splice(0, SPACE_IDS.length, ...def.seeds.map((s) => s.id))
+
+  for (const key of Object.keys(PREV)) delete PREV[key]
+  for (const id of SPACE_IDS) PREV[id] = []
+  for (const space of Object.values(BOARD)) {
+    for (const next of space.nextSpaces) PREV[next]?.push(space.id)
+  }
+
+  STAR_SPOTS.splice(0, STAR_SPOTS.length, ...def.seeds.filter((s) => s.starSpot).map((s) => s.id))
+
+  const forks = Object.values(BOARD)
+    .filter((space) => {
+      if (space.nextSpaces.length < 2) return false
+      return PREV[space.id].some(
+        (from) => space.nextSpaces.filter((n) => n !== from).length >= 2,
+      )
+    })
+    .map((space) => space.id)
+  FORK_IDS.splice(0, FORK_IDS.length, ...forks)
+
+  SIGNPOST_FORK_IDS.splice(
+    0,
+    SIGNPOST_FORK_IDS.length,
+    ...def.seeds.filter((s) => s.event === 'SIGNPOST').map((s) => s.next[0]),
+  )
+
+  WALL_SPACE_IDS.splice(
+    0,
+    WALL_SPACE_IDS.length,
+    ...def.seeds.filter((s) => s.wall).map((s) => s.id),
+  )
+  TREE_GOOD_IDS.splice(
+    0,
+    TREE_GOOD_IDS.length,
+    ...def.seeds.filter((s) => s.event === 'TREE_GOOD').map((s) => s.id),
+  )
+  TREE_BAD_IDS.splice(
+    0,
+    TREE_BAD_IDS.length,
+    ...def.seeds.filter((s) => s.event === 'TREE_BAD').map((s) => s.id),
+  )
+
+  MOLE_SPACE_ID = def.seeds.find((s) => s.hasMole)?.id ?? null
+  SHOP_SPACE_ID = def.seeds.find((s) => s.hasShop)?.id ?? null
+  START_SPACE_ID = def.seeds.find((s) => s.type === 'START')?.id ?? def.seeds[0]?.id ?? 'o01'
+}
+
+setActiveBoard(WOODY_WOODS_DEF)
+
+// ---------- Validation d'un BoardDef (éditeur / import JSON) ----------
+
+export interface BoardValidation {
+  /** Bloquants : le moteur planterait ou la partie serait injouable. */
+  errors: string[]
+  /** Non bloquants : map jouable mais étrange. */
+  warnings: string[]
+}
+
+export function validateBoardDef(def: BoardDef): BoardValidation {
+  const errors: string[] = []
+  const warnings: string[] = []
+  const ids = new Set<string>()
+
+  if (!def.seeds || def.seeds.length < 10) errors.push('Il faut au moins 10 cases.')
+  for (const s of def.seeds ?? []) {
+    if (!s.id?.trim()) errors.push('Une case a un id vide.')
+    else if (ids.has(s.id)) errors.push(`Id de case dupliqué : ${s.id}`)
+    ids.add(s.id)
+  }
+
+  // Graphe effectif (next + tronçons deux sens), sans toucher au plateau actif
+  const nexts = new Map<string, Set<string>>()
+  for (const s of def.seeds) nexts.set(s.id, new Set(s.next))
+  for (const [a, b] of def.twoWayPairs ?? []) {
+    if (!ids.has(a) || !ids.has(b)) {
+      errors.push(`Tronçon deux-sens vers une case inconnue : ${a} ↔ ${b}`)
+      continue
+    }
+    nexts.get(a)!.add(b)
+    nexts.get(b)!.add(a)
+  }
+  for (const s of def.seeds) {
+    for (const n of s.next) {
+      if (!ids.has(n)) errors.push(`${s.id} pointe vers une case inconnue : ${n}`)
+      if (n === s.id) errors.push(`${s.id} boucle sur elle-même.`)
+    }
+  }
+
+  const starts = def.seeds.filter((s) => s.type === 'START')
+  if (starts.length !== 1)
+    errors.push(`Il faut exactement 1 case Départ (trouvé : ${starts.length}).`)
+
+  for (const s of def.seeds) {
+    if ((nexts.get(s.id)?.size ?? 0) === 0) errors.push(`${s.id} est une impasse (aucune sortie).`)
+  }
+
+  // Atteignabilité depuis le départ + entrées
+  if (starts.length === 1 && errors.length === 0) {
+    const seen = new Set<string>([starts[0].id])
+    const queue = [starts[0].id]
+    while (queue.length > 0) {
+      const id = queue.pop()!
+      for (const n of nexts.get(id) ?? []) {
+        if (!seen.has(n)) {
+          seen.add(n)
+          queue.push(n)
+        }
+      }
+    }
+    for (const s of def.seeds) {
+      if (!seen.has(s.id)) errors.push(`${s.id} est inatteignable depuis le départ.`)
+    }
+    const hasIncoming = new Set<string>()
+    for (const [id, set] of nexts) for (const n of set) if (n !== id) hasIncoming.add(n)
+    for (const s of def.seeds) {
+      if (!hasIncoming.has(s.id) && s.type !== 'START')
+        warnings.push(`${s.id} n'a aucune entrée (impossible d'y passer).`)
+    }
+  }
+
+  const starSpots = def.seeds.filter((s) => s.starSpot)
+  if (starSpots.length < 2)
+    errors.push(
+      `Il faut au moins 2 emplacements d'Étoile pour qu'elle déménage (trouvé : ${starSpots.length}).`,
+    )
+
+  const blues = def.seeds.filter((s) => s.type === 'BLUE')
+  if (blues.length < 5)
+    errors.push(`Il faut au moins 5 cases bleues (malédictions de Kamek) — trouvé : ${blues.length}.`)
+
+  for (const s of def.seeds) {
+    if (s.event === 'SIGNPOST') {
+      const fork = s.next[0]
+      const exits = nexts.get(fork)?.size ?? 0
+      if (exits < 2)
+        warnings.push(`Le panneau ${s.id} précède ${fork} qui n'est pas un embranchement.`)
+    }
+    if (s.type === 'EVENT' && !s.event) warnings.push(`${s.id} est une case EVENT sans événement.`)
+  }
+
+  if (def.seeds.filter((s) => s.hasMole).length > 1)
+    warnings.push('Plusieurs Topi Taupe : seul le premier compte.')
+  if (def.seeds.filter((s) => s.hasShop).length > 1)
+    warnings.push('Plusieurs boutiques : seule la première compte.')
+  if (!def.seeds.some((s) => s.type === 'ITEM')) warnings.push('Aucune case Item sur la map.')
+
+  return { errors, warnings }
+}
+
+// ---------- Helpers ----------
 
 /**
  * Distance en cases (BFS sur le graphe, sens de circulation respecté).

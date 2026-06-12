@@ -5,6 +5,7 @@
 // l'app propose de reprendre la partie interrompue.
 // ============================================================
 
+import { BOARD } from './board'
 import type { GameState } from './types'
 
 const STORAGE_KEY = 'woody-woods-autosave'
@@ -39,6 +40,12 @@ export function readAutosave(): SavedGame | null {
     if (!raw) return null
     const parsed = JSON.parse(raw) as SavedGame
     if (parsed.version !== SAVE_VERSION || !parsed.state?.players?.length) return null
+    // La save doit référencer des cases du plateau ACTIF (le plateau
+    // custom de l'Atelier a pu changer entre-temps) : sinon on l'ignore.
+    const idsOk =
+      parsed.state.players.every((p) => BOARD[p.currentSpaceId]) &&
+      Boolean(BOARD[parsed.state.starSpaceId])
+    if (!idsOk) return null
     return parsed
   } catch {
     return null

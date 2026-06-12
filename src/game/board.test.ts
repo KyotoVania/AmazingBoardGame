@@ -10,7 +10,13 @@ import {
   STAR_SPOTS,
   START_SPACE_ID,
   WALL_SPACE_IDS,
+  WOODY_WOODS_DEF,
+  setActiveBoard,
+  validateBoardDef,
+  type BoardDef,
+  type BoardSeed,
 } from './board'
+import * as board from './board'
 import { DICE_BLOCKS, MINIGAMES, PODIUM_LAYOUTS } from './constants'
 import type { DiceBlockId } from './types'
 
@@ -143,5 +149,73 @@ describe('configuration des minijeux et du podium', () => {
 
   it('le layout 1v1 fait vainqueur / perdant / 2 spectateurs', () => {
     expect(PODIUM_LAYOUTS['1v1'].map((s) => s.count)).toEqual([1, 1, 2])
+  })
+})
+
+describe('plateau injectable (Atelier)', () => {
+  /** Anneau minimal valide : 12 cases, 2 spots étoile, 1 item, ≥5 bleues. */
+  function miniRing(): BoardDef {
+    const seeds: BoardSeed[] = Array.from({ length: 12 }, (_, i) => ({
+      id: `s${i}`,
+      type: i === 0 ? 'START' : i === 1 ? 'ITEM' : 'BLUE',
+      x: i,
+      y: 0,
+      next: [`s${(i + 1) % 12}`],
+      ...(i === 2 || i === 3 ? { starSpot: true } : {}),
+    }))
+    return { name: 'Mini', scale: 1, seeds, twoWayPairs: [] }
+  }
+
+  it('setActiveBoard reconstruit tous les exports, puis Woody Woods revient', () => {
+    const mini = miniRing()
+    expect(validateBoardDef(mini).errors).toEqual([])
+    try {
+      setActiveBoard(mini)
+      expect(SPACE_IDS).toHaveLength(12)
+      expect(board.START_SPACE_ID).toBe('s0')
+      expect(BOARD['s1'].nextSpaces).toEqual(['s2'])
+      expect(STAR_SPOTS).toEqual(['s2', 's3'])
+      expect(FORK_IDS).toHaveLength(0)
+      expect(WALL_SPACE_IDS).toHaveLength(0)
+      expect(board.MOLE_SPACE_ID).toBeNull()
+      expect(PREV['s0']).toEqual(['s11'])
+    } finally {
+      setActiveBoard(WOODY_WOODS_DEF)
+    }
+    expect(SPACE_IDS.length).toBeGreaterThanOrEqual(75)
+    expect(board.START_SPACE_ID).toBe('o01')
+    expect(SIGNPOST_FORK_IDS).toHaveLength(3)
+  })
+
+  it('validateBoardDef bloque les maps injouables', () => {
+    const mini = miniRing()
+    // impasse : on coupe la boucle
+    const broken = structuredClone(mini)
+    broken.seeds[5].next = []
+    expect(validateBoardDef(broken).errors.length).toBeGreaterThan(0)
+    // pas assez de spots étoile
+    const noStars = structuredClone(mini)
+    for (const s of noStars.seeds) delete s.starSpot
+    expect(validateBoardDef(noStars).errors.some((e) => e.includes('Étoile'))).toBe(true)
+    // deux départs
+    const twoStarts = structuredClone(mini)
+    twoStarts.seeds[6].type = 'START'
+    expect(validateBoardDef(twoStarts).errors.some((e) => e.includes('Départ'))).toBe(true)
+    // arête vers une case inconnue
+    const ghost = structuredClone(mini)
+    ghost.seeds[2].next.push('zz')
+    expect(validateBoardDef(ghost).errors.some((e) => e.includes('inconnue'))).toBe(true)
+  })
+
+  it('les twoWayPairs ajoutent les arêtes inverses', () => {
+    const mini = miniRing()
+    mini.twoWayPairs = [['s4', 's5']]
+    try {
+      setActiveBoard(mini)
+      expect(BOARD['s5'].nextSpaces).toContain('s4')
+      expect(BOARD['s4'].nextSpaces).toContain('s5')
+    } finally {
+      setActiveBoard(WOODY_WOODS_DEF)
+    }
   })
 })
