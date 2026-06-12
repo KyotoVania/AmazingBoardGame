@@ -64,7 +64,12 @@ export function PlayerToken3D({ player, index, isCurrent, hopTo, modelUrl, onHop
 
   useEffect(() => {
     const dest = worldOf(targetId)
-    if (dest[0] === posRef.current[0] && dest[1] === posRef.current[1]) return
+    if (dest[0] === posRef.current[0] && dest[1] === posRef.current[1]) {
+      // Rien à animer (ex. deux cases superposées sur une map custom) :
+      // le moteur attend quand même la fin du pas, sinon SOFTLOCK.
+      if (isCurrent && hopTo === targetId) onHopDone()
+      return
+    }
     fromRef.current = [...posRef.current]
     toRef.current = dest
     hopRef.current = isCurrent && hopTo === targetId

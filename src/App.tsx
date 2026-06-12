@@ -46,6 +46,20 @@ function Shell() {
   // Sons de la banque utilisateur (public/sounds/), silencieux si absente
   useGameSounds(state)
 
+  // Filet anti-softlock : si une animation 3D ne signale jamais sa fin
+  // (pas de pion ou dé qui ne retombe pas), le moteur reprend la main.
+  // Les actions sont idempotentes côté reducer (no-op si la phase a changé).
+  useEffect(() => {
+    if (state.phase === 'MOVING' && state.movement?.hopTo) {
+      const t = window.setTimeout(() => api.stepDone(), 4000)
+      return () => window.clearTimeout(t)
+    }
+    if (state.phase === 'ROLLING') {
+      const t = window.setTimeout(() => api.diceLanded(), 7000)
+      return () => window.clearTimeout(t)
+    }
+  }, [state.phase, state.movement?.hopTo, api])
+
   // Toggle caché LIVE <-> DEBUG : touche ~ (DebugMode.md)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
