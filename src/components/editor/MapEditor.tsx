@@ -64,6 +64,11 @@ function normalize(def: BoardDef): BoardDef {
     if (!sb.next.includes(a)) sb.next.push(a)
   }
   d.twoWayPairs = []
+  // Réparation : les cases EVENT créées sans événement (ancien bug de
+  // l'éditeur) deviennent des panneaux, comme leur menu l'affichait.
+  for (const sd of d.seeds) {
+    if (sd.type === 'EVENT' && !sd.event) sd.event = 'SIGNPOST'
+  }
   return d
 }
 
@@ -168,7 +173,15 @@ export function MapEditor() {
   const addSpace = (x: number, y: number) => {
     apply((d) => {
       const id = nextId(d)
-      d.seeds.push({ id, type: paletteType, x, y, next: [] })
+      d.seeds.push({
+        id,
+        type: paletteType,
+        x,
+        y,
+        next: [],
+        // une case EVENT sans événement ne fait rien : panneau par défaut
+        ...(paletteType === 'EVENT' ? { event: 'SIGNPOST' as BoardEventKind } : {}),
+      })
     })
   }
 
@@ -757,6 +770,7 @@ export function MapEditor() {
                   if (!s) return
                   s.type = e.target.value as SpaceType
                   if (s.type !== 'EVENT') delete s.event
+                  else if (!s.event) s.event = 'SIGNPOST'
                 })
               }
               className="bg-night-900 rounded-lg px-2 py-1.5 text-sm font-bold outline-none"
