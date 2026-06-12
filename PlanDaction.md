@@ -38,6 +38,19 @@ Notes pour l'agent suivant :
 - L'éditeur révèle que le tracé actuel diverge de imgMap (boucle intérieure absente) : l'utilisateur va retracer lui-même via l'Atelier — ne pas retoucher les seeds à la main.
 - Backlog restant inchangé : items 2 (ESLint), 3 (CI), 7 (purifier reducer), 10 (mode démo), 11 (2-6 joueurs), 13 (minijeux jouables).
 
+### Suite de session (même jour) — retours utilisateur après usage de l'éditeur
+
+| # | Tâche | Statut |
+|---|-------|--------|
+| 11 | **Banque Koopa** : 5 🪙 au passage (ou le reste) → cagnotte commune (`state.bankPot`, bandeau HUD), jackpot à l'arrêt pile. Coffre + Koopa 3D, slots custom `BANK_BUILDING`/`BANK_NPC` + `SHOP` (Flutter) | ✅ `c6fe5f6` |
+| 12 | **Cases vides (WAYPOINT)** : traversée gratuite (pas non consommé), les 5 carrefours convertis, BFS 0-1 pour la distance Étoile, garde 150 sauts, validation cycle | ✅ `c6fe5f6` |
+| 13 | **Portails à péage** (flag `gate`) : coût aléatoire 30 🪙 OU 1 ⭐ (GATE_COSTS), dialogue payer/refuser + FX + grille 3D, refus = déviation ou on campe | ✅ `c6fe5f6` |
+| 14 | **Case Inversion ⇄** : `player.reversed`, déplacement via PREV, forks inversés à choix libre, badge HUD | ✅ `c6fe5f6` |
+| 15 | **Fix flickering/lags** : pool de lights constant (dé + halos alliés), powerPreference, zéro alloc/frame | ✅ `8375dd3` (agent Opus) |
+| 16 | **Caméra début de tour sur le PION** (offset compris) + bouton 🗺️ Map (overview/follow, store hors state) + reprise main souris | ✅ `8300228` (agent Opus) |
+
+État : 92 tests verts, typecheck 0, smoke NO CONSOLE ERRORS. Le « système de barrage » évoqué = notre mur ; aucun code Gemini n'a jamais atteint git (vérifié local + origin).
+
 ## ✅ Étapes de la session Cowork 1 (2026-06-12 ~00h30)
 
 | # | Tâche | Statut |
