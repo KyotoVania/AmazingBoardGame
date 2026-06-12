@@ -18,7 +18,27 @@
 - `state.config` = règles runtime éditables (Config Panel ⚙️). Les modèles GLB vivent HORS
   state (contexte `ModelsProvider`, `src/components/three/Models.tsx`) car non sérialisables.
 
-## ✅ Étapes de cette session
+## ✅ Session Fable (2026-06-12, machine perso — npm/vitest/chromium DISPONIBLES ici)
+
+| # | Tâche | Statut |
+|---|-------|--------|
+| 1 | Tests jamais exécutés → 2 échecs trouvés et corrigés (walk() consommait le FORK_CHOICE observé ; assertion 5 forks pré-bidirectionnel) | ✅ `ad07ef5` — 84/84 verts |
+| 2 | **Plateau injectable** : BoardDef sérialisable, `setActiveBoard()` (exports vivants mutés en place, zéro importeur touché), `validateBoardDef`, persistance localStorage `www-custom-board` réinjectée au boot (main.tsx), garde-fou autosave (save → cases inexistantes = ignorée), 3 tests | ✅ `0b6300b` |
+| 3 | **Banque KayKit** : 47 .glb autonomes (2,5 Mo, zéro Draco/CDN) via `scripts/kaykit-convert.mjs` (idempotent), manifest FR, `3DASSET/` gitignoré | ✅ `e4c95b0` (agent Opus) |
+| 4 | **Sons banque de fichiers** : `src/audio/useGameSounds.ts` (11 clés sur transitions d'état), prefs localStorage, `SoundControls`, `public/sounds/README.md` | ✅ `b9447d9` (agent Opus) |
+| 5 | **Portraits customisables** : overrides localStorage + banque `public/images/characters/` + upload recompressé, branché dans EventPopup | ✅ `0d86dd3` (agent Opus) |
+| 6 | **🎨 L'Atelier** : hub custom séparé (map/modèles/portraits/sons/règles), lobby désencombré | ✅ `eaecc6a` |
+| 7 | **Éditeur de map** : image source en fond (opacité/calage), cases posables/déplaçables, liens →/↔/suppr au clic, drapeaux, validation live, undo Ctrl+Z, export/import JSON, « Jouer cette map » | ✅ `eaecc6a` |
+| 8 | **Décor 3D posable** : outil 🌳 (banque → clic sur la map, taille/rotation), `BoardDef.decor` (chemins bruts du manifest, portables), rendu FittedModel dans Board3D | ✅ `e0d6191` |
+| 9 | **Wow alliés** : arrivée en courant depuis le bord + poussière, file indienne « canards », mini-dés violets à côté du dé (somme = bonus moteur exact) | ✅ `540aa80` (agent Opus) |
+| 10 | **Bloom + vignettage** (@react-three/postprocessing, multisampling 0) | ✅ `da0a97a` |
+
+Notes pour l'agent suivant :
+- `npm run smoke` détecte maintenant tout chromium du cache ms-playwright (plus besoin de la version exacte) et gère les 2 modes du podium (FFA / équipes) + traverse l'Atelier.
+- L'éditeur révèle que le tracé actuel diverge de imgMap (boucle intérieure absente) : l'utilisateur va retracer lui-même via l'Atelier — ne pas retoucher les seeds à la main.
+- Backlog restant inchangé : items 2 (ESLint), 3 (CI), 7 (purifier reducer), 10 (mode démo), 11 (2-6 joueurs), 13 (minijeux jouables).
+
+## ✅ Étapes de la session Cowork 1 (2026-06-12 ~00h30)
 
 | # | Tâche | Statut |
 |---|-------|--------|
