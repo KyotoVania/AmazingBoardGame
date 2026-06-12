@@ -5,6 +5,7 @@
 
 import { Stars } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
+import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing'
 import { spaceWorldPos } from '../../game/board'
 import { getCurrentPlayer } from '../../game/reducer'
 import type { GameApi } from '../../game/useGameState'
@@ -74,6 +75,13 @@ export function GameCanvas({ api }: { api: GameApi }) {
         </group>
       )}
       <CameraRig state={state} />
+      {/* Post-process léger « console » : lueur sur les éléments brillants
+          (Étoile, lucioles, dés) + vignettage discret. multisampling 0 :
+          le SMAA du bloom mipmap suffit et ménage les petits GPU/TV. */}
+      <EffectComposer multisampling={0}>
+        <Bloom mipmapBlur intensity={0.55} luminanceThreshold={0.82} luminanceSmoothing={0.25} />
+        <Vignette eskil={false} offset={0.18} darkness={0.5} />
+      </EffectComposer>
     </Canvas>
   )
 }
