@@ -1,1 +1,190 @@
-[]
+[
+  {
+    "name": "Arbre A",
+    "file": "/models/kaykit/arbre-a.glb"
+  },
+  {
+    "name": "Arbre B",
+    "file": "/models/kaykit/arbre-b.glb"
+  },
+  {
+    "name": "Sapin A",
+    "file": "/models/kaykit/sapin-a.glb"
+  },
+  {
+    "name": "Sapin B",
+    "file": "/models/kaykit/sapin-b.glb"
+  },
+  {
+    "name": "Arbre rond",
+    "file": "/models/kaykit/arbre-rond.glb"
+  },
+  {
+    "name": "Grand arbre",
+    "file": "/models/kaykit/grand-arbre.glb"
+  },
+  {
+    "name": "Arbre mort A",
+    "file": "/models/kaykit/arbre-mort-a.glb"
+  },
+  {
+    "name": "Arbre mort B",
+    "file": "/models/kaykit/arbre-mort-b.glb"
+  },
+  {
+    "name": "Buisson A",
+    "file": "/models/kaykit/buisson-a.glb"
+  },
+  {
+    "name": "Buisson B",
+    "file": "/models/kaykit/buisson-b.glb"
+  },
+  {
+    "name": "Buisson fleuri",
+    "file": "/models/kaykit/buisson-fleuri.glb"
+  },
+  {
+    "name": "Touffe d'herbe A",
+    "file": "/models/kaykit/touffe-herbe-a.glb"
+  },
+  {
+    "name": "Touffe d'herbe B",
+    "file": "/models/kaykit/touffe-herbe-b.glb"
+  },
+  {
+    "name": "Rocher A",
+    "file": "/models/kaykit/rocher-a.glb"
+  },
+  {
+    "name": "Rocher B",
+    "file": "/models/kaykit/rocher-b.glb"
+  },
+  {
+    "name": "Rocher plat",
+    "file": "/models/kaykit/rocher-plat.glb"
+  },
+  {
+    "name": "Rocher moussu",
+    "file": "/models/kaykit/rocher-moussu.glb"
+  },
+  {
+    "name": "Gros rocher",
+    "file": "/models/kaykit/gros-rocher.glb"
+  },
+  {
+    "name": "Étoile dorée",
+    "file": "/models/kaykit/etoile-or.glb"
+  },
+  {
+    "name": "Étoile verte",
+    "file": "/models/kaykit/etoile-verte.glb"
+  },
+  {
+    "name": "Gemme",
+    "file": "/models/kaykit/gemme.glb"
+  },
+  {
+    "name": "Cœur vert",
+    "file": "/models/kaykit/coeur-vert.glb"
+  },
+  {
+    "name": "Cœur rouge",
+    "file": "/models/kaykit/coeur-rouge.glb"
+  },
+  {
+    "name": "Power-up",
+    "file": "/models/kaykit/power-up.glb"
+  },
+  {
+    "name": "Drapeau vert",
+    "file": "/models/kaykit/drapeau-vert.glb"
+  },
+  {
+    "name": "Drapeau rouge",
+    "file": "/models/kaykit/drapeau-rouge.glb"
+  },
+  {
+    "name": "Levier",
+    "file": "/models/kaykit/levier.glb"
+  },
+  {
+    "name": "Bouton",
+    "file": "/models/kaykit/bouton.glb"
+  },
+  {
+    "name": "Ressort sauteur",
+    "file": "/models/kaykit/ressort.glb"
+  },
+  {
+    "name": "Pic",
+    "file": "/models/kaykit/pic.glb"
+  },
+  {
+    "name": "Bombe",
+    "file": "/models/kaykit/bombe.glb"
+  },
+  {
+    "name": "Panneau",
+    "file": "/models/kaykit/panneau.glb"
+  },
+  {
+    "name": "Ligne d'arrivée",
+    "file": "/models/kaykit/ligne-arrivee.glb"
+  },
+  {
+    "name": "Arche",
+    "file": "/models/kaykit/arche.glb"
+  },
+  {
+    "name": "Plateforme de bois",
+    "file": "/models/kaykit/plateforme-bois.glb"
+  },
+  {
+    "name": "Lingot d'or",
+    "file": "/models/kaykit/lingot-or.glb"
+  },
+  {
+    "name": "Pile de lingots d'or",
+    "file": "/models/kaykit/pile-lingots-or.glb"
+  },
+  {
+    "name": "Lingot d'argent",
+    "file": "/models/kaykit/lingot-argent.glb"
+  },
+  {
+    "name": "Lingot de fer",
+    "file": "/models/kaykit/lingot-fer.glb"
+  },
+  {
+    "name": "Pépite d'or",
+    "file": "/models/kaykit/pepite-or.glb"
+  },
+  {
+    "name": "Minerai de cuivre",
+    "file": "/models/kaykit/minerai-cuivre.glb"
+  },
+  {
+    "name": "Brique de pierre",
+    "file": "/models/kaykit/brique-pierre.glb"
+  },
+  {
+    "name": "Bûche",
+    "file": "/models/kaykit/buche.glb"
+  },
+  {
+    "name": "Tas de bûches",
+    "file": "/models/kaykit/tas-de-buches.glb"
+  },
+  {
+    "name": "Planche",
+    "file": "/models/kaykit/planche.glb"
+  },
+  {
+    "name": "Tonneau",
+    "file": "/models/kaykit/tonneau.glb"
+  },
+  {
+    "name": "Palette de bois",
+    "file": "/models/kaykit/palette-bois.glb"
+  }
+]

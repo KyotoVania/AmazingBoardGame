@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Raw KayKit asset packs (never commit; converted .glb live in public/models/kaykit/)
+3DASSET/
+
 # Build
 dist/
 dist-ssr/
