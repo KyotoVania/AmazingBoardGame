@@ -1,0 +1,13 @@
+{
+  "dice_roll": "dice.mp3",
+  "step": "step.mp3",
+  "coins": "coins.mp3",
+  "star_steal": "star_steal.mp3",
+  "roulette": "roulette.mp3",
+  "podium": "podium.mp3",
+  "rewards": "rewards.mp3",
+  "turn": "turn.mp3",
+  "wall": "wall.mp3",
+  "gameover": "gameover.mp3",
+  "cursed": "cursed.mp3"
+}
