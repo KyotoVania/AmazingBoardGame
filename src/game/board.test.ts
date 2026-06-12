@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BOARD,
   FORK_IDS,
-  MOLE_SPACE_ID,
+  MOLE_SPACE_IDS,
   PREV,
   SIGNPOST_FORK_IDS,
   SPACE_IDS,
@@ -84,8 +84,8 @@ describe('plateau Woody Woods', () => {
     expect(pits).toHaveLength(1)
     expect(WALL_SPACE_IDS).toHaveLength(1)
     expect(Object.values(BOARD).filter((s) => s.hasBoo)).toHaveLength(1)
-    expect(MOLE_SPACE_ID).not.toBeNull()
-    expect(BOARD[MOLE_SPACE_ID!]).toBeDefined()
+    expect(MOLE_SPACE_IDS.length).toBeGreaterThanOrEqual(1)
+    for (const id of MOLE_SPACE_IDS) expect(BOARD[id]).toBeDefined()
   })
 })
 
@@ -177,7 +177,7 @@ describe('plateau injectable (Atelier)', () => {
       expect(STAR_SPOTS).toEqual(['s2', 's3'])
       expect(FORK_IDS).toHaveLength(0)
       expect(WALL_SPACE_IDS).toHaveLength(0)
-      expect(board.MOLE_SPACE_ID).toBeNull()
+      expect(board.MOLE_SPACE_IDS).toHaveLength(0)
       expect(PREV['s0']).toEqual(['s11'])
     } finally {
       setActiveBoard(WOODY_WOODS_DEF)

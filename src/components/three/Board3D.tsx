@@ -9,11 +9,12 @@ import { Html, Sparkles } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import {
+  BANK_SPACE_IDS,
   BOARD,
   FORK_IDS,
-  MOLE_SPACE_ID,
+  MOLE_SPACE_IDS,
   PREV,
-  SHOP_SPACE_ID,
+  SHOP_SPACE_IDS,
   SIGNPOST_FORK_IDS,
   SPACE_IDS,
   TREE_BAD_IDS,
@@ -503,8 +504,19 @@ function EventTrees({ goodUrl, badUrl }: { goodUrl: string | null; badUrl: strin
   )
 }
 
-/** L'étal de Flutter : auvent rayé + papillon qui voltige. */
+/** Toutes les boutiques de Flutter du plateau. */
 function ShopStand({ modelUrl }: { modelUrl: string | null }) {
+  return (
+    <>
+      {SHOP_SPACE_IDS.map((id) => (
+        <ShopStandAt key={id} spaceId={id} modelUrl={modelUrl} />
+      ))}
+    </>
+  )
+}
+
+/** L'étal de Flutter : auvent rayé + papillon qui voltige. */
+function ShopStandAt({ spaceId, modelUrl }: { spaceId: string; modelUrl: string | null }) {
   const ref = useRef<THREE.Sprite>(null)
   const tex = useMemo(() => spriteTexture('🦋'), [])
   useFrame(({ clock }) => {
@@ -512,8 +524,7 @@ function ShopStand({ modelUrl }: { modelUrl: string | null }) {
     ref.current.position.y = 1.5 + Math.sin(clock.elapsedTime * 2.4) * 0.18
     ref.current.position.x = Math.sin(clock.elapsedTime * 1.1) * 0.25
   })
-  if (!SHOP_SPACE_ID) return null
-  const space = getSpace(SHOP_SPACE_ID)
+  const space = getSpace(spaceId)
   if (modelUrl) {
     // Boutique custom (.glb) : le bâtiment est remplacé, Flutter voltige toujours
     return (
@@ -570,6 +581,16 @@ function ShopStand({ modelUrl }: { modelUrl: string | null }) {
 
 /** Topi Taupe : posté sur sa butte, il héle les passants. */
 function MoleNpc({ modelUrl }: { modelUrl: string | null }) {
+  return (
+    <>
+      {MOLE_SPACE_IDS.map((id) => (
+        <MoleNpcAt key={id} spaceId={id} modelUrl={modelUrl} />
+      ))}
+    </>
+  )
+}
+
+function MoleNpcAt({ spaceId, modelUrl }: { spaceId: string; modelUrl: string | null }) {
   const ref = useRef<THREE.Group>(null)
   const tex = useMemo(() => spriteTexture('🦫'), [])
   useFrame(({ clock }) => {
@@ -578,8 +599,7 @@ function MoleNpc({ modelUrl }: { modelUrl: string | null }) {
     ref.current.position.y =
       (modelUrl ? 0.1 : 0.75) + Math.abs(Math.sin(clock.elapsedTime * 1.4)) * 0.35
   })
-  if (!MOLE_SPACE_ID) return null
-  const space = getSpace(MOLE_SPACE_ID)
+  const space = getSpace(spaceId)
   return (
     <group position={[space.x + 0.9, 0, space.y - 0.9]}>
       {/* la butte de terre */}
@@ -848,14 +868,31 @@ function BoardDecor() {
 // ---------- La Banque Koopa : bâtiment + banquier (customisables) ----------
 
 function BankStand({ buildingUrl, npcUrl }: { buildingUrl: string | null; npcUrl: string | null }) {
+  return (
+    <>
+      {BANK_SPACE_IDS.map((id) => (
+        <BankStandAt key={id} spaceId={id} buildingUrl={buildingUrl} npcUrl={npcUrl} />
+      ))}
+    </>
+  )
+}
+
+function BankStandAt({
+  spaceId,
+  buildingUrl,
+  npcUrl,
+}: {
+  spaceId: string
+  buildingUrl: string | null
+  npcUrl: string | null
+}) {
   const npcRef = useRef<THREE.Sprite>(null)
   const koopaTex = useMemo(() => spriteTexture('🐢'), [])
   const signTex = useMemo(() => labelTexture('🏦'), [])
   useFrame(({ clock }) => {
     if (npcRef.current) npcRef.current.position.y = 1.0 + Math.sin(clock.elapsedTime * 2.2) * 0.12
   })
-  const bank = Object.values(BOARD).find((sp) => sp.type === 'BANK')
-  if (!bank) return null
+  const bank = getSpace(spaceId)
   return (
     <group position={[bank.x + 0.95, 0, bank.y - 0.65]}>
       {buildingUrl ? (

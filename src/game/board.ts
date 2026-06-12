@@ -214,11 +214,14 @@ export const WALL_SPACE_IDS: string[] = []
 export const TREE_GOOD_IDS: string[] = []
 export const TREE_BAD_IDS: string[] = []
 
-/** Case occupée par Topi Taupe. */
-export let MOLE_SPACE_ID: string | null = null
+/** Cases occupées par un Topi Taupe (réorientation des panneaux). */
+export const MOLE_SPACE_IDS: string[] = []
 
-/** Case de la boutique de Flutter. */
-export let SHOP_SPACE_ID: string | null = null
+/** Cases des boutiques de Flutter (il peut y en avoir plusieurs). */
+export const SHOP_SPACE_IDS: string[] = []
+
+/** Cases Banque Koopa. */
+export const BANK_SPACE_IDS: string[] = []
 
 export let START_SPACE_ID = 'o01'
 
@@ -295,8 +298,9 @@ export function setActiveBoard(def: BoardDef): void {
     ...def.seeds.filter((s) => s.event === 'TREE_BAD').map((s) => s.id),
   )
 
-  MOLE_SPACE_ID = def.seeds.find((s) => s.hasMole)?.id ?? null
-  SHOP_SPACE_ID = def.seeds.find((s) => s.hasShop)?.id ?? null
+  MOLE_SPACE_IDS.splice(0, MOLE_SPACE_IDS.length, ...def.seeds.filter((s) => s.hasMole).map((s) => s.id))
+  SHOP_SPACE_IDS.splice(0, SHOP_SPACE_IDS.length, ...def.seeds.filter((s) => s.hasShop).map((s) => s.id))
+  BANK_SPACE_IDS.splice(0, BANK_SPACE_IDS.length, ...def.seeds.filter((s) => s.type === 'BANK').map((s) => s.id))
   START_SPACE_ID = def.seeds.find((s) => s.type === 'START')?.id ?? def.seeds[0]?.id ?? 'o01'
 }
 
@@ -429,10 +433,6 @@ export function validateBoardDef(def: BoardDef): BoardValidation {
       warnings.push(`${sd.id} : mur sur une case de passage libre (on ne peut pas s'y arrêter).`)
   }
 
-  if (def.seeds.filter((s) => s.hasMole).length > 1)
-    warnings.push('Plusieurs Topi Taupe : seul le premier compte.')
-  if (def.seeds.filter((s) => s.hasShop).length > 1)
-    warnings.push('Plusieurs boutiques : seule la première compte.')
   if (!def.seeds.some((s) => s.type === 'ITEM')) warnings.push('Aucune case Item sur la map.')
 
   return { errors, warnings }
