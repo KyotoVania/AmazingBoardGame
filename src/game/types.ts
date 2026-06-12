@@ -264,6 +264,8 @@ export interface MovementState {
   remaining: number
   /** Garde anti-boucle : nombre total de sauts effectués ce déplacement. */
   hops?: number
+  /** Pièces rackettées par un Peepa pendant ce déplacement (bilan au log). */
+  peepaLoot?: number
   /** Total de pas du lancer (affichage N/total). */
   total: number
   /** Prochaine case vers laquelle le pion saute (résolue par le reducer). */

@@ -357,6 +357,16 @@ function continueOrLand(s: GameState): void {
 function landOnSpace(s: GameState): void {
   const p = current(s)
   const wasBackward = s.movement?.backward ?? false
+  // bilan du racket Peepa (sinon le vol case par case passe inaperçu)
+  const peepaLoot = s.movement?.peepaLoot ?? 0
+  if (peepaLoot > 0 && p.peepaBy) {
+    const stalker = s.players.find((pl) => pl.id === p.peepaBy)
+    log(
+      s,
+      `🔔 Le Peepa ${stalker ? `de ${stalker.name} ` : ''}a racketté ${peepaLoot} pièce${peepaLoot > 1 ? 's' : ''} à ${p.name} en chemin !`,
+      'BAD',
+    )
+  }
   s.movement = null
   const space = getSpace(p.currentSpaceId)
   const type = effectiveSpaceType(s, space.id)
@@ -897,6 +907,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (stalker && p.coins > 0) {
           p.coins -= 1
           stalker.coins += 1
+          m.peepaLoot = (m.peepaLoot ?? 0) + 1
         }
       }
       if (!m.backward) {
