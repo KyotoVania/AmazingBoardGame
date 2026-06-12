@@ -118,6 +118,9 @@ export const EVENT_CHARACTERS: Record<EventCharacterId, EventCharacterDef> = {
   },
 }
 
+/** Liste ordonnée de tous les IDs de personnages (pratique pour itérer). */
+export const EVENT_CHARACTER_IDS = Object.keys(EVENT_CHARACTERS) as EventCharacterId[]
+
 // ---------------------------------------------------------------------------
 // HELPER
 // ---------------------------------------------------------------------------

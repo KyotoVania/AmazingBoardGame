@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { SIGNPOST_FORK_IDS, getSpace } from '../../game/board'
 import { ITEMS, TREE_COIN_FRUIT } from '../../game/constants'
 import { EVENT_CHARACTERS, type EventCharacterId } from '../../game/eventImages'
+import { usePortraitUrl } from '../../game/portraitOverrides'
 import { effectiveStarCost, isFinalRound } from '../../game/reducer'
 import { pickNarrative } from '../../game/eventNarratives'
 import { effectiveSpaceType, getCurrentPlayer } from '../../game/reducer'
@@ -29,6 +30,8 @@ interface Speaker {
   imageUrl: string | null
   name: string
   tone: PopupTone
+  /** Présent quand le portrait vient du registre : permet l'override custom. */
+  characterId?: EventCharacterId
 }
 
 /** Devine le personnage d'un POPUP générique d'après son titre. */
@@ -48,7 +51,7 @@ function popupCharacter(title: string): EventCharacterId | null {
 
 function fromRegistry(id: EventCharacterId, tone: PopupTone, name?: string): Speaker {
   const def = EVENT_CHARACTERS[id]
-  return { portrait: def.emoji, imageUrl: def.imageUrl, name: name ?? def.name, tone }
+  return { portrait: def.emoji, imageUrl: def.imageUrl, name: name ?? def.name, tone, characterId: id }
 }
 
 /** Portrait (image du registre ou emoji) + nom du personnage qui parle. */
@@ -86,7 +89,10 @@ function speakerFor(pending: PendingAction): Speaker {
 /** Portrait avec image custom et repli automatique sur l'emoji. */
 function Portrait({ speaker }: { speaker: Speaker }) {
   const [failed, setFailed] = useState(false)
-  const showImage = speaker.imageUrl && !failed
+  // Override custom réactif quand le portrait vient du registre, sinon image statique.
+  const overrideUrl = usePortraitUrl(speaker.characterId ?? 'BOO')
+  const imageUrl = speaker.characterId ? overrideUrl : speaker.imageUrl
+  const showImage = imageUrl && !failed
   return (
     <motion.div
       initial={{ scale: 0, rotate: -12 }}
@@ -96,7 +102,8 @@ function Portrait({ speaker }: { speaker: Speaker }) {
     >
       {showImage ? (
         <img
-          src={speaker.imageUrl!}
+          key={imageUrl}
+          src={imageUrl}
           alt={speaker.name}
           onError={() => setFailed(true)}
           className="h-full w-full object-cover"
