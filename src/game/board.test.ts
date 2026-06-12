@@ -56,7 +56,9 @@ describe('plateau Woody Woods', () => {
 
   it('4 emplacements d’Étoile, 5 forks dont 3 à panneau', () => {
     expect(STAR_SPOTS).toHaveLength(4)
-    expect(FORK_IDS).toHaveLength(5)
+    // les tronçons bidirectionnels créent des jonctions-choix en plus
+    // des 5 forks "historiques" de la map
+    expect(FORK_IDS.length).toBeGreaterThanOrEqual(5)
     expect(SIGNPOST_FORK_IDS).toHaveLength(3)
     for (const id of SIGNPOST_FORK_IDS) expect(FORK_IDS).toContain(id)
     for (const id of STAR_SPOTS) expect(BOARD[id]).toBeDefined()

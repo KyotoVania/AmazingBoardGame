@@ -1065,8 +1065,9 @@ describe('carrefours bidirectionnels (jonctions à choix libre)', () => {
   it('arriver à une jonction par la route principale offre un choix', () => {
     let s = start()
     s = { ...s, starSpaceId: 'q02' }
-    // m06 → m07 : la bande centrale croise le connecteur centre
-    s = walk(rollFrom(s, 'm06', 2))
+    // m06 → m07 : la bande centrale croise le connecteur centre.
+    // (un seul STEP_DONE : walk() consommerait lui-même le choix)
+    s = reduce(rollFrom(s, 'm06', 2), { type: 'STEP_DONE' })
     // le pion s'arrête à m07 et doit choisir : continuer (m08) ou monter (c15)
     expect(s.phase).toBe('FORK_CHOICE')
     expect(s.players[0].currentSpaceId).toBe('m07')
