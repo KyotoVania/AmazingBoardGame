@@ -65,7 +65,8 @@ const SEEDS: SpaceSeed[] = [
   { id: 'o41', type: 'ITEM', x: 8.9, y: 0.4, next: ['o42'] },
   { id: 'o42', type: 'BLUE', x: 8.8, y: 1.4, next: ['o43'] },
   { id: 'o43', type: 'BAD_LUCK', x: 8.7, y: 2.4, next: ['o44'] },
-  { id: 'o44', type: 'BLUE', x: 8.6, y: 3.4, next: ['o45'] },
+  // Boutique de Flutter (doc SMP : achat au passage, comme l'Étoile/Boo)
+  { id: 'o44', type: 'BLUE', x: 8.6, y: 3.4, next: ['o45'], hasShop: true },
   { id: 'o45', type: 'BLUE', x: 8.4, y: 4.4, next: ['o46'] },
   { id: 'o46', type: 'SIP_PLUS', x: 8.2, y: 5.4, next: ['o01'] },
 
@@ -202,6 +203,9 @@ export const WALL_SPACE_IDS: string[] = SEEDS.filter((s) => s.wall).map((s) => s
 
 /** Case occupée par Topi Taupe. */
 export const MOLE_SPACE_ID: string | null = SEEDS.find((s) => s.hasMole)?.id ?? null
+
+/** Case de la boutique de Flutter. */
+export const SHOP_SPACE_ID: string | null = SEEDS.find((s) => s.hasShop)?.id ?? null
 
 /** Les 3 cases événement devant chaque arbre. */
 export const TREE_GOOD_IDS: string[] = SEEDS.filter((s) => s.event === 'TREE_GOOD').map((s) => s.id)

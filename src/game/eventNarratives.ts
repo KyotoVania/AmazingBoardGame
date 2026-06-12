@@ -345,6 +345,22 @@ export const NARRATIVES = {
     `{amount} pièces dans un bloc caché pour {name} ! Tu trébuches sur la fortune, littéralement.`,
   ],
 
+  /** Chomp Call — l'Étoile déménage. Vars : {name} */
+  ITEM_CHOMP_CALL: [
+    `🐶 {name} appelle le CHOMP ! L'Étoile déménage en hurlant ! Toadette n'a même pas fini ses cartons.`,
+    `WOUAF ! Le Chomp de {name} fait fuir Toadette à l'autre bout du plateau ! Le marché de l'immobilier est brutal.`,
+    `{name} balance l'Appel Chomp ! L'Étoile change d'adresse — et ceux qui étaient à deux cases peuvent pleurer.`,
+    `Le Chomp débarque sur ordre de {name} ! L'Étoile prend ses jambes à son cou. Sabotage de qualité.`,
+  ],
+
+  /** Boutique de Flutter — accueil. Vars : {name} */
+  SHOP_WELCOME: [
+    `🦋 « Bienvenue chez Flutter, {name} ! Tout est hors de prix mais t'es pas en état de négocier. »`,
+    `🦋 « Entre, {name} ! Promo du jour : rien. Mais regarde quand même. »`,
+    `🦋 Flutter déploie son étal devant {name} : « On achète, ou on fait du lèche-vitrine en titubant ? »`,
+    `🦋 « {name} ! Pile la tête du client qui achète n'importe quoi. Parfait, entre. »`,
+  ],
+
   /* ── Événements CURSED (interruptions random à l'écran) ───────────── */
 
   /** Cursed random event — texte hurlé par-dessus l'image. No vars. */

@@ -13,6 +13,8 @@ import {
   HIDDEN_BLOCK_STAR_CHANCE,
   KAMEK_BACK_MAX,
   KAMEK_BACK_MIN,
+  KAMEK_CURSES_FINAL,
+  KAMEK_CURSES_MIDGAME,
   KAMEK_GIVE_COINS,
   KAMEK_SIPS,
   ITEMS,
@@ -23,6 +25,7 @@ import {
   MOLE_COST_MAX,
   MOLE_COST_MIN,
   PODIUM_LAYOUTS,
+  SHOP_STOCK_SIZE,
   START_COINS,
   TREE_BAD_BACK_MAX,
   TREE_BAD_BACK_MIN,
@@ -46,6 +49,8 @@ import { pick, rand, randInt } from './rng'
 import type {
   BadLuckOutcome,
   BoardSpace,
+  ItemDef,
+  ItemId,
   DiceBlockId,
   FxEvent,
   GameAction,
@@ -72,6 +77,7 @@ export function createInitialState(): GameState {
     currentPlayerIndex: 0,
     starSpaceId: STAR_SPOTS[0],
     vsConvertedIds: [],
+    cursedSpaceIds: [],
     signposts: {},
     walls: {},
     itemUsedThisTurn: false,
@@ -320,6 +326,13 @@ function landOnSpace(s: GameState): void {
       popup(s, '🏁 Case Départ', pickNarrative('START', { name: p.name }), 'NEUTRAL')
       break
     case 'BLUE':
+      // Malédiction cachée de Kamek ? (règle SMP : révélée en marchant dessus)
+      if (s.cursedSpaceIds.includes(space.id)) {
+        s.cursedSpaceIds = s.cursedSpaceIds.filter((id) => id !== space.id)
+        log(s, `🔮 SURPRISE : la case était MAUDITE par Kamek !`, 'BAD')
+        openKamekWheel(s, space.id)
+        break
+      }
       addCoins(p, s.config.blueCoins)
       log(s, `${p.name} gagne ${s.config.blueCoins} pièces (case bleue)`, 'GOOD')
       popup(s, '🔵 Case Bleue', pickNarrative('BLUE', { name: p.name, amount: s.config.blueCoins }), 'GOOD')
@@ -364,20 +377,9 @@ function landOnSpace(s: GameState): void {
       break
     }
     case 'BAD_LUCK': {
-      // LA ROUE DE KAMEK : le sort est tiré ICI par le moteur ; la
-      // roulette à l'écran ne fait que le révéler avec du suspense.
-      const others = s.players.filter((pl) => pl.id !== p.id)
-      const options: BadLuckOutcome[] = [
-        { kind: 'LOSE_COINS', amount: pick(BAD_LUCK_COINS) },
-        p.inventory.length > 0
-          ? { kind: 'LOSE_ITEM', index: randInt(0, p.inventory.length - 1) }
-          : { kind: 'LOSE_COINS', amount: pick(BAD_LUCK_COINS) },
-        { kind: 'GIVE_COINS', targetId: pick(others).id, amount: KAMEK_GIVE_COINS },
-        { kind: 'SIPS', amount: KAMEK_SIPS },
-        { kind: 'BACK', steps: randInt(KAMEK_BACK_MIN, KAMEK_BACK_MAX) },
-      ]
-      s.focusSpaceId = space.id
-      s.pending = { kind: 'BAD_LUCK_WHEEL', options, resultIndex: randInt(0, options.length - 1) }
+      // LA ROUE DE KAMEK : le sort est tiré par le moteur, la roulette
+      // à l'écran ne fait que le révéler avec du suspense.
+      openKamekWheel(s, space.id)
       break
     }
     case 'VS': {
@@ -397,6 +399,42 @@ function landOnSpace(s: GameState): void {
     case 'EVENT':
       resolveEvent(s, space, wasBackward)
       break
+  }
+}
+
+/** Ouvre la Roue de Kamek pour le joueur courant (poisse ou case maudite). */
+function openKamekWheel(s: GameState, spaceId: string): void {
+  const p = current(s)
+  const others = s.players.filter((pl) => pl.id !== p.id)
+  const options: BadLuckOutcome[] = [
+    { kind: 'LOSE_COINS', amount: pick(BAD_LUCK_COINS) },
+    p.inventory.length > 0
+      ? { kind: 'LOSE_ITEM', index: randInt(0, p.inventory.length - 1) }
+      : { kind: 'LOSE_COINS', amount: pick(BAD_LUCK_COINS) },
+    { kind: 'GIVE_COINS', targetId: pick(others).id, amount: KAMEK_GIVE_COINS },
+    { kind: 'SIPS', amount: KAMEK_SIPS },
+    { kind: 'BACK', steps: randInt(KAMEK_BACK_MIN, KAMEK_BACK_MAX) },
+  ]
+  s.focusSpaceId = spaceId
+  s.pending = { kind: 'BAD_LUCK_WHEEL', options, resultIndex: randInt(0, options.length - 1) }
+}
+
+/** Kamek maudit en secret des cases bleues banales (règle SMP). */
+function addKamekCurses(s: GameState, count: number): void {
+  const candidates = Object.values(BOARD).filter(
+    (sp) =>
+      sp.type === 'BLUE' &&
+      !sp.starSpot &&
+      !sp.hasBoo &&
+      !sp.hasMole &&
+      !sp.hasShop &&
+      !sp.wall &&
+      !s.cursedSpaceIds.includes(sp.id),
+  )
+  for (let i = 0; i < count && candidates.length > 0; i++) {
+    const idx = randInt(0, candidates.length - 1)
+    s.cursedSpaceIds.push(candidates[idx].id)
+    candidates.splice(idx, 1)
   }
 }
 
@@ -571,6 +609,20 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           popup(s, '🪈 Tuyau doré', pickNarrative('ITEM_GOLDEN_PIPE', { name: p.name }), 'GOOD')
           break
         }
+        case 'CHOMP_CALL': {
+          // Signature Woody Woods : le Chomp déménage l'Étoile !
+          const others = STAR_SPOTS.filter((id) => id !== s.starSpaceId)
+          s.starSpaceId = pick(others)
+          s.focusSpaceId = s.starSpaceId
+          log(s, `🐶 ${p.name} appelle le Chomp : l'Étoile DÉMÉNAGE !`, 'GOOD')
+          popup(
+            s,
+            '🐶 Appel Chomp',
+            pickNarrative('ITEM_CHOMP_CALL', { name: p.name }),
+            'GOOD',
+          )
+          break
+        }
         case 'HIDDEN_BLOCK_CARD': {
           if (rand() < HIDDEN_BLOCK_STAR_CHANCE) {
             p.stars += 1
@@ -678,6 +730,25 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           s.phase = 'PASS_EVENT'
           s.focusSpaceId = p.currentSpaceId
           s.pending = { kind: 'MOLE_PROMPT', cost: randInt(MOLE_COST_MIN, MOLE_COST_MAX) }
+          return s
+        }
+        if (arrived.hasShop) {
+          // Boutique de Flutter (doc SMP) : stock tiré selon l'avancée de
+          // la partie (Chomp Call à ~1/3, Tuyau doré vers la fin)
+          const progress = s.round / Math.max(1, s.maxRounds)
+          const available = (Object.values(ITEMS) as ItemDef[])
+            .filter((it) => it.shopFrom <= progress)
+            .map((it) => it.id)
+          const stock: ItemId[] = []
+          const pool = [...available]
+          while (stock.length < SHOP_STOCK_SIZE && pool.length > 0) {
+            const idx = randInt(0, pool.length - 1)
+            stock.push(pool[idx])
+            pool.splice(idx, 1)
+          }
+          s.phase = 'PASS_EVENT'
+          s.focusSpaceId = p.currentSpaceId
+          s.pending = { kind: 'SHOP_PROMPT', stock }
           return s
         }
       }
@@ -800,6 +871,27 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           s.minigame = { context: 'VS', pot, category: 'FFA', title: null, groups: null, teams: null }
           s.phase = 'MINIGAME_TITLE'
           log(s, `Case VS : ${pot} pièces dans le pot !`, 'SYSTEM')
+          return s
+        }
+        case 'SHOP_BUY': {
+          if (pending.kind !== 'SHOP_PROMPT') return state
+          if (!pending.stock.includes(choice.itemId)) return state
+          const item = ITEMS[choice.itemId]
+          if (p.coins < item.price || p.inventory.length >= MAX_INVENTORY) return state
+          addCoins(p, -item.price)
+          p.inventory.push(choice.itemId)
+          log(s, `🦋 ${p.name} achète ${item.emoji} ${item.name} (${item.price} pièces)`, 'GOOD')
+          popup(
+            s,
+            '🦋 Boutique de Flutter',
+            pickNarrative('ITEM_GET', { name: p.name, item: `${item.emoji} ${item.name}` }),
+            'GOOD',
+          )
+          return s
+        }
+        case 'SHOP_LEAVE': {
+          if (pending.kind !== 'SHOP_PROMPT') return state
+          continueOrLand(s)
           return s
         }
         case 'WALL_TRY': {
@@ -1050,6 +1142,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       s.rollBonus = 0
       rerollSignposts(s) // règle réelle : les panneaux changent à chaque manche
       resetWalls(s)
+      // Règle SMP : Kamek maudit des cases en SECRET à mi-partie,
+      // puis en remet une couche en dernière manche.
+      if (s.round === Math.max(2, Math.ceil(s.maxRounds / 2))) {
+        addKamekCurses(s, KAMEK_CURSES_MIDGAME)
+        log(s, `🔮 Kamek a maudit ${KAMEK_CURSES_MIDGAME} cases bleues… quelque part.`, 'SYSTEM')
+      }
+      if (isFinalRound(s)) {
+        addKamekCurses(s, KAMEK_CURSES_FINAL)
+        log(s, `🔮 Kamek en remet une couche : ${KAMEK_CURSES_FINAL} malédictions de plus !`, 'SYSTEM')
+      }
       // Plan de transition : la caméra survole le plateau et un récap
       // explique les nouvelles directions des panneaux.
       s.phase = 'ROUND_INTRO'

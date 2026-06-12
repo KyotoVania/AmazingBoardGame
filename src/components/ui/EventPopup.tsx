@@ -78,6 +78,8 @@ function speakerFor(pending: PendingAction): Speaker {
       return fromRegistry('KAMEK', 'BAD', 'La Roue de Kamek')
     case 'WALL_PROMPT':
       return { portrait: '🧱', imageUrl: null, name: 'LE MUR', tone: 'NEUTRAL' }
+    case 'SHOP_PROMPT':
+      return fromRegistry('FLUTTER', 'GOOD', 'Boutique de Flutter')
   }
 }
 
@@ -150,6 +152,7 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
     () => ({
       tree: pickNarrative('TREE_GOOD_PROMPT', { name: player.name }),
       boo: pickNarrative('BOO_INTRO', { name: player.name }),
+      shop: pickNarrative('SHOP_WELCOME', { name: player.name }),
       vs: pending.kind === 'VS_WAGER' ? pickNarrative('VS', { amount: pending.amount }) : '',
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -280,6 +283,49 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
 
     case 'BAD_LUCK_WHEEL':
       return <KamekWheel options={pending.options} resultIndex={pending.resultIndex} player={player} />
+
+    case 'SHOP_PROMPT':
+      return (
+        <>
+          <p className="text-cream/90 mt-1 text-lg font-bold">
+            {flavor.shop} <span className="text-cream/55">(tu as {player.coins} 🪙)</span>
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2.5">
+            {pending.stock.map((itemId) => {
+              const item = ITEMS[itemId]
+              const blocked =
+                player.coins < item.price || player.inventory.length >= 3
+              return (
+                <motion.button
+                  key={itemId}
+                  whileHover={blocked ? undefined : { scale: 1.05, rotate: -1 }}
+                  whileTap={blocked ? undefined : { scale: 0.95 }}
+                  disabled={blocked}
+                  onClick={() => resolvePending({ kind: 'SHOP_BUY', itemId })}
+                  className="bg-night-800 hover:bg-night-700 w-44 rounded-2xl p-3 text-left disabled:opacity-40"
+                >
+                  <span className="flex items-center justify-between">
+                    <span className="text-3xl">{item.emoji}</span>
+                    <span className="text-gold-300 text-base font-extrabold">{item.price} 🪙</span>
+                  </span>
+                  <span className="mt-1 block text-sm font-extrabold leading-tight">{item.name}</span>
+                  <span className="text-cream/55 block text-[11px] font-semibold leading-tight">
+                    {item.description}
+                  </span>
+                </motion.button>
+              )
+            })}
+          </div>
+          {player.inventory.length >= 3 && (
+            <p className="mt-2 text-xs font-bold text-red-300/90">Inventaire plein (3 max) !</p>
+          )}
+          <div className="mt-3 flex justify-end">
+            <WideButton ghost onClick={() => resolvePending({ kind: 'SHOP_LEAVE' })}>
+              Continuer sa route ➜
+            </WideButton>
+          </div>
+        </>
+      )
 
     case 'WALL_PROMPT':
       return (

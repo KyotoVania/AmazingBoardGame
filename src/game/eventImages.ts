@@ -29,6 +29,7 @@ export type EventCharacterId =
   | 'BOO' | 'MOLE' | 'TOADETTE'
   | 'KAMEK' | 'PIT' | 'STAR'
   | 'MUSHROOM' | 'SIGNPOST'
+  | 'FLUTTER'
 
 /** Definition for a single event character's visual representation */
 export interface EventCharacterDef {
@@ -108,6 +109,12 @@ export const EVENT_CHARACTERS: Record<EventCharacterId, EventCharacterDef> = {
     name: 'Panneau',
     emoji: '🪧',
     imageUrl: assetUrl('/images/signpost.png'),
+  },
+  FLUTTER: {
+    id: 'FLUTTER',
+    name: 'Flutter',
+    emoji: '🦋',
+    imageUrl: assetUrl('/images/flutter.png'),
   },
 }
 

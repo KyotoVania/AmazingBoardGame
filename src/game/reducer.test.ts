@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { BOARD, PREV, SIGNPOST_FORK_IDS, STAR_SPOTS, WALL_SPACE_IDS, getSpace } from './board'
 import {
   DEFAULT_LOBBY,
+  ITEMS,
   MINIGAMES,
   MOLE_COST_MAX,
   MOLE_COST_MIN,
@@ -106,6 +107,8 @@ function quickTurn(state: GameState): GameState {
       s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'BAD_LUCK_DONE' } })
     } else if (s.pending.kind === 'WALL_PROMPT') {
       s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'WALL_TRY' } })
+    } else if (s.pending.kind === 'SHOP_PROMPT') {
+      s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'SHOP_LEAVE' } })
     } else if (s.pending.kind === 'VS_WAGER') {
       throw new Error('quickTurn a atterri sur une case VS, adapter le test')
     } else {
@@ -751,6 +754,91 @@ describe('fin de manche : minijeu, podium par catégorie, récompenses', () => {
     )
     expect(s.phase).toBe('GAME_OVER')
     expect(s.winners).toEqual(['P3'])
+  })
+})
+
+describe('boutique de Flutter (doc SMP : achat au passage)', () => {
+  it('passer devant la boutique propose un stock, acheter débite et ajoute l’item', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    const shop = Object.values(BOARD).find((sp) => sp.hasShop)!
+    s = reduce(rollFrom(s, PREV[shop.id][0], 2), { type: 'STEP_DONE' })
+    expect(s.pending?.kind).toBe('SHOP_PROMPT')
+    const pending = s.pending
+    if (pending?.kind !== 'SHOP_PROMPT') throw new Error('boutique attendue')
+    expect(pending.stock.length).toBeGreaterThan(0)
+    const itemId = pending.stock[0]
+    const price = ITEMS[itemId].price
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'SHOP_BUY', itemId } })
+    expect(s.players[0].coins).toBe(START_COINS - price)
+    expect(s.players[0].inventory).toContain(itemId)
+  })
+
+  it('refuse un achat trop cher ou hors stock, et SHOP_LEAVE reprend la route', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    const shop = Object.values(BOARD).find((sp) => sp.hasShop)!
+    s = reduce(rollFrom(s, PREV[shop.id][0], 2), { type: 'STEP_DONE' })
+    if (s.pending?.kind !== 'SHOP_PROMPT') throw new Error('boutique attendue')
+    // fauché : impossible d'acheter
+    s = gameReducer(s, { type: 'DEBUG_EDIT_STATS', playerId: 'P1', patch: { coins: 0 } })
+    const before = s
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'SHOP_BUY', itemId: s.pending!.kind === 'SHOP_PROMPT' ? s.pending.stock[0] : 'DASH_MUSHROOM' } })
+    expect(s).toBe(before)
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'SHOP_LEAVE' } })
+    expect(['MOVING', 'FORK_CHOICE', 'SPACE_ACTION']).toContain(s.phase)
+  })
+
+  it('le stock respecte la progression (pas de Tuyau doré en manche 1)', () => {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      setSeed(2000 + attempt)
+      let s = start(10) // manche 1/10 : progress 0.1
+      s = { ...s, starSpaceId: 'q02' }
+      const shop = Object.values(BOARD).find((sp) => sp.hasShop)!
+      s = reduce(rollFrom(s, PREV[shop.id][0], 2), { type: 'STEP_DONE' })
+      if (s.pending?.kind !== 'SHOP_PROMPT') throw new Error('boutique attendue')
+      expect(s.pending.stock).not.toContain('GOLDEN_PIPE')
+      expect(s.pending.stock).not.toContain('CHOMP_CALL')
+    }
+  })
+})
+
+describe('Appel Chomp (signature Woody Woods)', () => {
+  it('déplace l’Étoile sur un autre spot', () => {
+    let s = start()
+    const before = s.starSpaceId
+    s = reduce(
+      s,
+      { type: 'DEBUG_INJECT_ITEM', playerId: 'P1', itemId: 'CHOMP_CALL' },
+      { type: 'USE_ITEM', itemId: 'CHOMP_CALL' },
+    )
+    expect(s.starSpaceId).not.toBe(before)
+    expect(STAR_SPOTS).toContain(s.starSpaceId)
+    expect(s.players[0].inventory).not.toContain('CHOMP_CALL')
+  })
+})
+
+describe('malédictions cachées de Kamek (règle SMP)', () => {
+  it('atterrir sur une bleue maudite déclenche la Roue et révèle la case', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    const { from, to } = approachTo((sp) => sp.type === 'BLUE' && !sp.starSpot && !sp.hasShop)
+    s = { ...s, cursedSpaceIds: [to] }
+    s = walk(rollFrom(s, from, 1))
+    expect(s.pending?.kind).toBe('BAD_LUCK_WHEEL')
+    expect(s.cursedSpaceIds).not.toContain(to)
+  })
+
+  it('Kamek maudit des cases à mi-partie', () => {
+    let s = start(4) // mi-partie = manche 2
+    s = podiumState(s, { category: 'FFA' })
+    s = reduce(
+      s,
+      { type: 'SET_PODIUM', groups: [['P1'], ['P2'], ['P3'], ['P4']] },
+      { type: 'CONTINUE' },
+    )
+    expect(s.round).toBe(2)
+    expect(s.cursedSpaceIds.length).toBeGreaterThan(0)
   })
 })
 

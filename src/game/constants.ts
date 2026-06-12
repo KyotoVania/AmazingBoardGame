@@ -358,6 +358,8 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     emoji: '🍄',
     needsTarget: false,
     needsValue: false,
+    price: 3,
+    shopFrom: 0,
   },
   GOLDEN_DASH_MUSHROOM: {
     id: 'GOLDEN_DASH_MUSHROOM',
@@ -366,6 +368,8 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     emoji: '✨',
     needsTarget: false,
     needsValue: false,
+    price: 9,
+    shopFrom: 0.4,
   },
   POISON_MUSHROOM: {
     id: 'POISON_MUSHROOM',
@@ -374,6 +378,8 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     emoji: '☠️',
     needsTarget: true,
     needsValue: false,
+    price: 4,
+    shopFrom: 0,
   },
   CUSTOM_DICE_BLOCK: {
     id: 'CUSTOM_DICE_BLOCK',
@@ -382,6 +388,8 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     emoji: '🎯',
     needsTarget: false,
     needsValue: true,
+    price: 5,
+    shopFrom: 0,
   },
   COINADO: {
     id: 'COINADO',
@@ -390,6 +398,8 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     emoji: '🌪️',
     needsTarget: true,
     needsValue: false,
+    price: 7,
+    shopFrom: 0.25,
   },
   FLY_GUY_TICKET: {
     id: 'FLY_GUY_TICKET',
@@ -398,6 +408,8 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     emoji: '🎫',
     needsTarget: true,
     needsValue: false,
+    price: 8,
+    shopFrom: 0.25,
   },
   GOLDEN_PIPE: {
     id: 'GOLDEN_PIPE',
@@ -406,6 +418,8 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     emoji: '🪈',
     needsTarget: false,
     needsValue: false,
+    price: 25,
+    shopFrom: 0.6,
   },
   HIDDEN_BLOCK_CARD: {
     id: 'HIDDEN_BLOCK_CARD',
@@ -414,6 +428,18 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     emoji: '🎁',
     needsTarget: false,
     needsValue: false,
+    price: 5,
+    shopFrom: 0,
+  },
+  CHOMP_CALL: {
+    id: 'CHOMP_CALL',
+    name: 'Appel Chomp',
+    description: 'Le Chomp déménage l’Étoile ailleurs ! (signature Woody Woods)',
+    emoji: '🐶',
+    needsTarget: false,
+    needsValue: false,
+    price: 6,
+    shopFrom: 0.3,
   },
 }
 
@@ -505,3 +531,13 @@ export function defaultGameConfig(): GameConfig {
     cursedIntervalMin: 10,
   }
 }
+
+// ---------- Boutique de Flutter (doc SMP : achat au passage) ----------
+
+/** Nombre d'items proposés à chaque visite de la boutique. */
+export const SHOP_STOCK_SIZE = 3
+
+// ---------- Malédictions de Kamek (règle SMP : cases cachées) ----------
+
+export const KAMEK_CURSES_MIDGAME = 3
+export const KAMEK_CURSES_FINAL = 2

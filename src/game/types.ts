@@ -40,6 +40,8 @@ export interface BoardSpace {
   hasMole?: boolean
   /** Un mur destructible barre l'entrée de cette case. */
   wall?: boolean
+  /** La boutique de Flutter est postée ici : achat proposé au passage. */
+  hasShop?: boolean
   /** Emplacement candidat pour l'Étoile (points jaunes de la map). */
   starSpot?: boolean
   /** Libellés humains des branches sortantes (forks), même ordre que nextSpaces. */
@@ -109,6 +111,7 @@ export type ItemId =
   | 'FLY_GUY_TICKET'
   | 'GOLDEN_PIPE'
   | 'HIDDEN_BLOCK_CARD'
+  | 'CHOMP_CALL'
 
 export interface ItemDef {
   id: ItemId
@@ -119,6 +122,10 @@ export interface ItemDef {
   needsTarget: boolean
   /** L'item exige une valeur saisie (Dé truqué : 1 à 6). */
   needsValue: boolean
+  /** Prix en boutique (doc SMP / Woody Woods : Chomp Call 6, Tuyau doré 25…). */
+  price: number
+  /** Manche à partir de laquelle l'item apparaît en boutique (fraction de maxRounds, 0-1). */
+  shopFrom: number
 }
 
 // ---------- Joueurs ----------
@@ -289,6 +296,7 @@ export type PendingAction =
   | { kind: 'MOLE_PROMPT'; cost: number }
   | { kind: 'BAD_LUCK_WHEEL'; options: BadLuckOutcome[]; resultIndex: number }
   | { kind: 'WALL_PROMPT'; spaceId: string; strength: number }
+  | { kind: 'SHOP_PROMPT'; stock: ItemId[] }
 
 /** Réponses possibles à une PendingAction. */
 export type PendingChoice =
@@ -302,6 +310,8 @@ export type PendingChoice =
   | { kind: 'MOLE'; pay: boolean; directions?: Record<string, number> }
   | { kind: 'BAD_LUCK_DONE' }
   | { kind: 'WALL_TRY' }
+  | { kind: 'SHOP_BUY'; itemId: ItemId }
+  | { kind: 'SHOP_LEAVE' }
 
 // ---------- Configuration runtime (Config Panel) ----------
 
@@ -360,6 +370,12 @@ export interface GameState {
   starSpaceId: string
   /** Cases VS converties en cases bleues après usage (règle SMP). */
   vsConvertedIds: string[]
+  /**
+   * Cases bleues MAUDITES en secret par Kamek (règle SMP : il en ajoute
+   * à mi-partie, puis encore en dernière manche). Y atterrir déclenche
+   * la Roue de Kamek et révèle la malédiction.
+   */
+  cursedSpaceIds: string[]
   /** Direction DICTÉE par chaque panneau (index de branche, par fork). */
   signposts: Record<string, number>
   /** Solidité restante des murs, par case (0 = cassé). */

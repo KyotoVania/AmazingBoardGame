@@ -12,6 +12,7 @@ import {
   BOARD,
   FORK_IDS,
   MOLE_SPACE_ID,
+  SHOP_SPACE_ID,
   SIGNPOST_FORK_IDS,
   SPACE_IDS,
   TREE_BAD_IDS,
@@ -83,10 +84,11 @@ export function Board3D({ state, chooseFork, models = {} }: BoardProps) {
         />
       ))}
       <Walls3D walls={state.walls} />
-      {debug && hovered && <DebugSpaceTip id={hovered} />}
+      {debug && hovered && <DebugSpaceTip id={hovered} cursed={state.cursedSpaceIds.includes(hovered)} />}
       <StarBeacon spaceId={state.starSpaceId} modelUrl={models.STAR ?? null} />
       <BooGhost modelUrl={models.BOO ?? null} />
       <MoleNpc modelUrl={models.MOLE ?? null} />
+      <ShopStand />
       <EventTrees goodUrl={models.TREE_GOOD ?? null} badUrl={models.TREE_BAD ?? null} />
       <DecorTrees />
       <Signposts signposts={state.signposts} />
@@ -487,6 +489,56 @@ function EventTrees({ goodUrl, badUrl }: { goodUrl: string | null; badUrl: strin
   )
 }
 
+/** L'étal de Flutter : auvent rayé + papillon qui voltige. */
+function ShopStand() {
+  const ref = useRef<THREE.Sprite>(null)
+  const tex = useMemo(() => spriteTexture('🦋'), [])
+  useFrame(({ clock }) => {
+    if (!ref.current) return
+    ref.current.position.y = 1.5 + Math.sin(clock.elapsedTime * 2.4) * 0.18
+    ref.current.position.x = Math.sin(clock.elapsedTime * 1.1) * 0.25
+  })
+  if (!SHOP_SPACE_ID) return null
+  const space = getSpace(SHOP_SPACE_ID)
+  return (
+    <group position={[space.x + 1.0, 0, space.y + 0.4]}>
+      {/* comptoir */}
+      <mesh castShadow position-y={0.3}>
+        <boxGeometry args={[0.9, 0.6, 0.5]} />
+        <meshStandardMaterial color="#8a5a2b" roughness={0.9} />
+      </mesh>
+      {/* poteaux */}
+      {[-0.4, 0.4].map((x) => (
+        <mesh key={x} castShadow position={[x, 0.85, 0]}>
+          <cylinderGeometry args={[0.035, 0.035, 1.1, 8]} />
+          <meshStandardMaterial color="#6d4424" roughness={0.9} />
+        </mesh>
+      ))}
+      {/* auvent rayé */}
+      <mesh castShadow position-y={1.45} rotation-x={0.18}>
+        <boxGeometry args={[1.15, 0.06, 0.75]} />
+        <meshStandardMaterial color="#e8554f" roughness={0.7} />
+      </mesh>
+      <mesh position={[0, 1.43, 0.12]} rotation-x={0.18}>
+        <boxGeometry args={[1.16, 0.07, 0.24]} />
+        <meshStandardMaterial color="#f6f1e6" roughness={0.7} />
+      </mesh>
+      {/* marchandise */}
+      <mesh castShadow position={[-0.22, 0.66, 0.1]}>
+        <sphereGeometry args={[0.09, 10, 8]} />
+        <meshStandardMaterial color="#ef5350" />
+      </mesh>
+      <mesh castShadow position={[0.16, 0.66, -0.05]}>
+        <boxGeometry args={[0.16, 0.12, 0.14]} />
+        <meshStandardMaterial color="#ffd54a" />
+      </mesh>
+      <sprite ref={ref} position-y={1.5} scale={[0.6, 0.6, 0.6]}>
+        <spriteMaterial map={tex} transparent depthWrite={false} />
+      </sprite>
+    </group>
+  )
+}
+
 /** Topi Taupe : posté sur sa butte, il héle les passants. */
 function MoleNpc({ modelUrl }: { modelUrl: string | null }) {
   const ref = useRef<THREE.Group>(null)
@@ -713,14 +765,16 @@ function Walls3D({ walls }: { walls: Record<string, number> }) {
 
 // ---------- Tooltip God Mode : infos de la case survolée ----------
 
-function DebugSpaceTip({ id }: { id: string }) {
+function DebugSpaceTip({ id, cursed }: { id: string; cursed?: boolean }) {
   const sp = getSpace(id)
   const extras: string[] = []
   if (sp.event) extras.push(`event: ${sp.event}`)
   if (sp.starSpot) extras.push('starSpot')
   if (sp.hasBoo) extras.push('Boo')
   if (sp.hasMole) extras.push('Topi Taupe')
+  if (sp.hasShop) extras.push('Boutique 🦋')
   if (sp.wall) extras.push('MUR')
+  if (cursed) extras.push('🔮 MAUDITE (caché)')
   return (
     <group position={[sp.x, 2.1, sp.y]}>
       <Html center distanceFactor={16} zIndexRange={[60, 60]}>

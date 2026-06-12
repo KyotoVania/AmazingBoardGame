@@ -87,6 +87,13 @@ export function RoundIntro() {
         >
           <p>▲ Les chevrons sombres sur les chemins indiquent le sens unique ; les tronçons clairs se parcourent dans les deux sens (choix aux carrefours « ? »).</p>
           <p>🧱 Les murs sont reconstruits à pleine solidité.</p>
+          {state.cursedSpaceIds.length > 0 && (
+            <p className="text-purple-300">
+              🔮 Kamek a maudit {state.cursedSpaceIds.length} case
+              {state.cursedSpaceIds.length > 1 ? 's' : ''} bleue
+              {state.cursedSpaceIds.length > 1 ? 's' : ''}… quelque part. Marchez prudemment.
+            </p>
+          )}
           <p>🦫 Topi Taupe peut réorienter les panneaux contre quelques pièces, à chaque passage.</p>
           <p>⭐ L'Étoile attend toujours sur sa case (suis le halo doré).</p>
         </motion.div>
