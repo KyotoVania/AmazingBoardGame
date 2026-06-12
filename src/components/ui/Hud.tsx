@@ -4,6 +4,7 @@
 // ============================================================
 
 import { motion } from 'framer-motion'
+import { distanceBetween } from '../../game/board'
 import { CHARACTERS, DICE_BLOCKS, ITEMS, MAX_INVENTORY } from '../../game/constants'
 import type { GamePhase, Player } from '../../game/types'
 import { useGame } from '../../game/useGameState'
@@ -50,19 +51,38 @@ export function Hud() {
 
       <div className="absolute top-1/2 left-3 z-10 flex w-56 -translate-y-1/2 flex-col gap-3">
         {left.map((p) => (
-          <PlayerCard key={p.id} player={p} active={p.id === activeId} />
+          <PlayerCard
+            key={p.id}
+            player={p}
+            active={p.id === activeId}
+            starDist={distanceBetween(p.currentSpaceId, state.starSpaceId)}
+          />
         ))}
       </div>
       <div className="absolute top-1/2 right-3 z-10 flex w-56 -translate-y-1/2 flex-col gap-3">
         {right.map((p) => (
-          <PlayerCard key={p.id} player={p} active={p.id === activeId} />
+          <PlayerCard
+            key={p.id}
+            player={p}
+            active={p.id === activeId}
+            starDist={distanceBetween(p.currentSpaceId, state.starSpaceId)}
+          />
         ))}
       </div>
     </>
   )
 }
 
-function PlayerCard({ player, active }: { player: Player; active: boolean }) {
+function PlayerCard({
+  player,
+  active,
+  starDist,
+}: {
+  player: Player
+  active: boolean
+  /** Distance BFS jusqu'à l'Étoile (doc Woody Woods : sans compter les panneaux). */
+  starDist: number
+}) {
   const char = CHARACTERS[player.character]
   return (
     <motion.div
@@ -102,6 +122,14 @@ function PlayerCard({ player, active }: { player: Player; active: boolean }) {
         <span title="Gorgées bues">🍺 {player.sipsTaken}</span>
         <span title="Gorgées distribuées">🫗 {player.sipsGiven}</span>
       </div>
+      {starDist >= 0 && (
+        <p
+          className="text-gold-300/80 mt-1 text-[11px] font-extrabold"
+          title="Au plus court — sans tenir compte des panneaux !"
+        >
+          ⭐ à {starDist} case{starDist > 1 ? 's' : ''} (si les panneaux coopèrent…)
+        </p>
+      )}
 
       <div className="mt-2 flex items-center gap-1.5">
         {Array.from({ length: MAX_INVENTORY }, (_, i) => {

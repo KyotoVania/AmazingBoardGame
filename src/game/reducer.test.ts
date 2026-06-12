@@ -4,7 +4,7 @@
 // Les cases cibles sont trouvées dynamiquement dans le graphe pour
 // rester valables si la map évolue.
 import { beforeEach, describe, expect, it } from 'vitest'
-import { BOARD, PREV, SIGNPOST_FORK_IDS, STAR_SPOTS, WALL_SPACE_IDS, getSpace } from './board'
+import { BOARD, PREV, SIGNPOST_FORK_IDS, STAR_SPOTS, WALL_SPACE_IDS, distanceBetween, getSpace } from './board'
 import {
   DEFAULT_LOBBY,
   ITEMS,
@@ -754,6 +754,18 @@ describe('fin de manche : minijeu, podium par catégorie, récompenses', () => {
     )
     expect(s.phase).toBe('GAME_OVER')
     expect(s.winners).toEqual(['P3'])
+  })
+})
+
+describe('distance à l’Étoile (BFS, doc Woody Woods)', () => {
+  it('compte au plus court dans le sens de circulation, panneaux ignorés', () => {
+    expect(distanceBetween('o01', 'o01')).toBe(0)
+    expect(distanceBetween('o01', 'o02')).toBe(1)
+    // o02 → o01 : il faut refaire le tour, mais ça reste atteignable
+    expect(distanceBetween('o02', 'o01')).toBeGreaterThan(1)
+    for (const spot of STAR_SPOTS) {
+      expect(distanceBetween('o01', spot)).toBeGreaterThanOrEqual(0)
+    }
   })
 })
 

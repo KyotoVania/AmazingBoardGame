@@ -213,6 +213,33 @@ export const TREE_BAD_IDS: string[] = SEEDS.filter((s) => s.event === 'TREE_BAD'
 
 export const START_SPACE_ID = 'o01'
 
+/**
+ * Distance en cases (BFS sur le graphe, sens de circulation respecté).
+ * Comme sur la vraie map Woody Woods : on IGNORE la direction des
+ * panneaux — c'est « le plus court si les flèches coopèrent ».
+ * -1 si inatteignable.
+ */
+export function distanceBetween(fromId: string, toId: string): number {
+  if (fromId === toId) return 0
+  const seen = new Set<string>([fromId])
+  let frontier = [fromId]
+  let dist = 0
+  while (frontier.length > 0 && dist < 200) {
+    dist += 1
+    const next: string[] = []
+    for (const id of frontier) {
+      for (const n of BOARD[id]?.nextSpaces ?? []) {
+        if (seen.has(n)) continue
+        if (n === toId) return dist
+        seen.add(n)
+        next.push(n)
+      }
+    }
+    frontier = next
+  }
+  return -1
+}
+
 export function getSpace(id: string): BoardSpace {
   const space = BOARD[id]
   if (!space) throw new Error(`Case inconnue : ${id}`)
