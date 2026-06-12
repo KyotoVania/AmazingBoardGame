@@ -31,6 +31,9 @@ const FOLLOW_STIFFNESS = 6.5
 /** Décalages latéraux légers pour que la file ne soit pas une ligne morte. */
 const LANE_OFFSET = [0.12, -0.14, 0.1]
 
+/** Vecteur de travail réutilisé (évite d'allouer un Vector3 par frame). */
+const _dir = new THREE.Vector3()
+
 /** Valeur réactive lisible (SpringValue ou Interpolation react-spring). */
 type Readable = { get(): number }
 
@@ -100,6 +103,10 @@ function AllyLink({
   onArrived,
 }: LinkProps) {
   const groupRef = useRef<THREE.Group>(null)
+  // Halo d'arrivée : TOUJOURS monté (nombre de lights constant tant que
+  // l'allié existe → pas de recompilation de shaders à chaque arrivée).
+  // On module son intensité dans useFrame : vive pendant la course, 0 sinon.
+  const haloRef = useRef<THREE.PointLight>(null)
   const tex = useMemo(() => spriteTexture(CHARACTERS[ally].emoji), [ally])
   const lane = LANE_OFFSET[index % LANE_OFFSET.length]
   // Phase de bond propre à chaque allié (déterministe via l'index → pas de
@@ -154,7 +161,7 @@ function AllyLink({
     if (!my) {
       // 1re frame : on initialise. Si arrivée spectaculaire, on SPAWN au bord.
       if (arriving && !settled.current) {
-        const dir = new THREE.Vector3(leader.x, 0, leader.z).normalize()
+        const dir = _dir.set(leader.x, 0, leader.z).normalize()
         if (dir.lengthSq() < 1e-4) dir.set(0, 0, 1)
         chain.current[index] = {
           x: leader.x + dir.x * 14,
@@ -169,7 +176,7 @@ function AllyLink({
     if (!settled.current && arriving) {
       // COURSE : interpole du bord vers la place, piloté par le spring run.t.
       const t = run.t.get()
-      const dir = new THREE.Vector3(leader.x, 0, leader.z)
+      const dir = _dir.set(leader.x, 0, leader.z)
       if (dir.lengthSq() < 1e-4) dir.set(0, 0, 1)
       dir.normalize()
       const spawnX = leader.x + dir.x * 14
@@ -207,6 +214,11 @@ function AllyLink({
     const dx = leader.x - my.x
     const dz = leader.z - my.z
     if (dx * dx + dz * dz > 1e-4) g.rotation.y = Math.atan2(dx, dz)
+
+    // Halo d'arrivée : intensité modulée (pas de mount/unmount de light).
+    if (haloRef.current) {
+      haloRef.current.intensity = !settled.current && arriving ? 2.4 : 0
+    }
   })
 
   useEffect(() => () => window.clearTimeout(dustTimer.current), [])
@@ -223,10 +235,9 @@ function AllyLink({
         </sprite>
       </group>
       {dust && <ArrivalBurst color={color} />}
-      {/* halo discret tant que l'allié court, pour attirer l'œil */}
-      {arriving && !settled.current && (
-        <pointLight position={[0, 0.6, 0]} intensity={2.4} distance={2.4} color="#fff2c0" />
-      )}
+      {/* Halo discret tant que l'allié court (toujours monté, intensité pilotée
+          dans useFrame → halo à 0 hors course, sans toucher au nombre de lights). */}
+      <pointLight ref={haloRef} position={[0, 0.6, 0]} intensity={0} distance={2.4} color="#fff2c0" />
     </group>
   )
 }

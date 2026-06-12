@@ -49,7 +49,9 @@ export function Dice3D({ dice, position, onLanded }: Props) {
           delayMs={220}
         />
       )}
-      <pointLight position={[0, 3.4, 1]} intensity={5} distance={8} color="#fff6da" />
+      {/* (La lumière du dé est désormais montée en permanence dans GameCanvas —
+          intensité modulée par la phase — pour garder un nombre de lights
+          constant et éviter la recompilation des shaders à chaque lancer.) */}
     </group>
   )
 }

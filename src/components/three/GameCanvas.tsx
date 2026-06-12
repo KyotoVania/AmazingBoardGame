@@ -28,8 +28,15 @@ export function GameCanvas({ api }: { api: GameApi }) {
     dicePos = [x, 0, z]
   }
 
+  const rolling = state.phase === 'ROLLING' && !!state.dice
+
   return (
-    <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 23, 19], fov: 42 }}>
+    <Canvas
+      shadows
+      dpr={[1, 2]}
+      camera={{ position: [0, 23, 19], fov: 42 }}
+      gl={{ powerPreference: 'high-performance' }}
+    >
       <color attach="background" args={['#0a1410']} />
       <fog attach="fog" args={['#0a1410', 46, 105]} />
       {/* nuit étoilée au-dessus de la forêt */}
@@ -51,6 +58,16 @@ export function GameCanvas({ api }: { api: GameApi }) {
       />
       {/* contre-jour froid pour détacher les silhouettes */}
       <directionalLight position={[-14, 9, -16]} intensity={0.45} color="#7fa3ff" />
+      {/* Lumière du dé : TOUJOURS montée (compte de lights constant → pas de
+          recompilation de shaders à chaque lancer). Elle se déplace sur le
+          pion courant et ne s'allume (intensity > 0) que pendant ROLLING.
+          Hors ROLLING : intensity 0 → strictement invisible, comme avant. */}
+      <pointLight
+        position={[dicePos[0], 3.4, dicePos[2] + 1]}
+        intensity={rolling ? 5 : 0}
+        distance={8}
+        color="#fff6da"
+      />
       <Board3D state={state} chooseFork={api.chooseFork} models={models} />
       {state.players.map((p, i) => (
         <PlayerToken3D
