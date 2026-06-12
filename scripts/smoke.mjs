@@ -2,20 +2,42 @@
 // traverse lobby -> plateau -> god mode -> lancer de dé, capture
 // les erreurs console et des screenshots de contrôle.
 import { spawn } from 'node:child_process'
+import { existsSync, readdirSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-// Chemin du chromium : var d'env > détection playwright > rien (erreur claire).
+// Chemin du chromium : var d'env > détection playwright > scan du cache
+// ms-playwright (n'importe quelle version déjà téléchargée) > erreur claire.
 // `npx playwright install chromium` le met en place sur n'importe quel OS.
+function findCachedChromium() {
+  try {
+    const cache = join(homedir(), '.cache', 'ms-playwright')
+    const dirs = readdirSync(cache)
+      .filter((d) => /^chromium-\d+$/.test(d))
+      .sort()
+      .reverse()
+    for (const d of dirs) {
+      for (const sub of ['chrome-linux64/chrome', 'chrome-linux/chrome']) {
+        const exe = join(cache, d, sub)
+        if (existsSync(exe)) return exe
+      }
+    }
+  } catch {
+    /* pas de cache : tant pis */
+  }
+  return undefined
+}
 const EXE =
   process.env.CHROMIUM_PATH ??
   (() => {
     try {
-      return chromium.executablePath()
+      const exe = chromium.executablePath()
+      return existsSync(exe) ? exe : findCachedChromium()
     } catch {
-      return undefined
+      return findCachedChromium()
     }
   })()
 const PORT = 4191
@@ -45,6 +67,16 @@ try {
   await page.waitForTimeout(1300)
   await page.screenshot({ path: 'smoke-1-lobby.png' })
 
+  // ----- l'Atelier : éditeur de map + onglets de customisation -----
+  await page.getByRole('button', { name: /Atelier/ }).click()
+  await page.waitForTimeout(900)
+  await page.screenshot({ path: 'smoke-1b-atelier-map.png' })
+  await page.getByRole('button', { name: /Modèles 3D/ }).click()
+  await page.waitForTimeout(500)
+  await page.screenshot({ path: 'smoke-1c-atelier-modeles.png' })
+  await page.getByRole('button', { name: /Retour au lobby/ }).click()
+  await page.waitForTimeout(400)
+
   await page.getByRole('button', { name: /LANCER LA PARTIE/ }).click()
   await page.waitForTimeout(2600)
   await page.screenshot({ path: 'smoke-2-board.png' })
@@ -65,14 +97,26 @@ try {
   await page.getByRole('button', { name: /ROULETTE DES JEUX/ }).click({ timeout: 15000 })
   await page.getByRole('button', { name: /C'EST PARTI/ }).click({ timeout: 15000 })
   await page.screenshot({ path: 'smoke-6-minigame.png' })
-  await page.getByRole('button', { name: /SAISIR LE PODIUM/ }).click()
+  await page.getByRole('button', { name: /SAISIR LE (PODIUM|RÉSULTAT)/ }).click()
+  await page.waitForTimeout(500)
 
-  for (const team of ['Équipe Rouge', 'Équipe Bleue', 'Équipe Verte', 'Équipe Jaune']) {
-    await page.getByRole('button', { name: new RegExp(team) }).click()
-    await page.getByText('Déposer ici').first().click()
+  // Deux modes de saisie : FFA = drag&drop / 1v1-2v2 = équipe gagnante
+  if ((await page.getByText('Déposer ici').count()) > 0) {
+    for (const team of ['Équipe Rouge', 'Équipe Bleue', 'Équipe Verte', 'Équipe Jaune']) {
+      await page.getByRole('button', { name: new RegExp(team) }).click()
+      await page.getByText('Déposer ici').first().click()
+    }
+    await page.screenshot({ path: 'smoke-7-podium.png' })
+    await page.getByRole('button', { name: /VALIDER LE CLASSEMENT/ }).click()
+  } else {
+    await page.screenshot({ path: 'smoke-7-podium.png' })
+    // mode équipes : on déclare la première équipe gagnante
+    await page
+      .locator('button')
+      .filter({ hasText: /Équipe/ })
+      .first()
+      .click()
   }
-  await page.screenshot({ path: 'smoke-7-podium.png' })
-  await page.getByRole('button', { name: /VALIDER LE CLASSEMENT/ }).click()
   await page.waitForTimeout(900)
   await page.screenshot({ path: 'smoke-8-rewards.png' })
   await page.getByRole('button', { name: /MANCHE 2/ }).click()

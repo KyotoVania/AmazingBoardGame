@@ -21,6 +21,8 @@ import { CursedOverlay } from './components/ui/CursedOverlay'
 import { ResumeBanner } from './components/ui/ResumeBanner'
 import { RoundIntro } from './components/ui/RoundIntro'
 import { FxOverlay } from './components/ui/FxOverlay'
+import { AtelierScreen } from './components/ui/AtelierScreen'
+import { useGameSounds } from './audio/useGameSounds'
 import { GameProvider, useGame } from './game/useGameState'
 
 export default function App() {
@@ -37,8 +39,12 @@ function Shell() {
   const api = useGame()
   const { state, debug } = api
   const [configOpen, setConfigOpen] = useState(false)
+  const [atelierOpen, setAtelierOpen] = useState(false)
   // ⚙️ accessible au lobby, et en partie uniquement en God Mode
   const canConfigure = state.phase === 'LOBBY' || state.mode === 'DEBUG'
+
+  // Sons de la banque utilisateur (public/sounds/), silencieux si absente
+  useGameSounds(state)
 
   // Toggle caché LIVE <-> DEBUG : touche ~ (DebugMode.md)
   useEffect(() => {
@@ -85,6 +91,19 @@ function Shell() {
         onClick={() => debug.toggleMode()}
         className="absolute top-0 left-0 z-50 h-9 w-9 opacity-0"
       />
+
+      {state.phase === 'LOBBY' && (
+        <button
+          onClick={() => setAtelierOpen(true)}
+          title="Atelier de customisation"
+          className="bg-night-900/85 text-gold-300 hover:bg-night-800 absolute top-3 right-16 z-50 flex h-10 items-center gap-2 rounded-full px-4 text-sm font-extrabold shadow-lg backdrop-blur-sm"
+        >
+          🎨 Atelier
+        </button>
+      )}
+      {atelierOpen && state.phase === 'LOBBY' && (
+        <AtelierScreen onClose={() => setAtelierOpen(false)} />
+      )}
 
       {canConfigure && (
         <button

@@ -16,7 +16,6 @@ import {
 } from '../../game/constants'
 import type { LobbyPlayerConfig, PlayerId } from '../../game/types'
 import { useGame } from '../../game/useGameState'
-import { useModels, type ModelSlot } from '../three/Models'
 import { ModelPicker } from './ModelPicker'
 
 export function LobbyScreen() {
@@ -57,7 +56,10 @@ export function LobbyScreen() {
         ))}
       </div>
 
-      <DecorModelsSection />
+      <p className="text-cream/45 relative z-10 mt-4 text-sm font-bold">
+        🎨 Modèles 3D, portraits, sons et éditeur de map : tout se passe dans{' '}
+        <span className="text-gold-300">l'Atelier</span> (bouton en haut à droite).
+      </p>
 
       <motion.footer
         initial={{ opacity: 0, y: 24 }}
@@ -93,44 +95,6 @@ export function LobbyScreen() {
 }
 
 const LOBBY_PLAYER_IDS: PlayerId[] = ['P1', 'P2', 'P3', 'P4']
-
-const LOBBY_DECOR_SLOTS: { slot: ModelSlot; label: string }[] = [
-  { slot: 'STAR', label: '⭐ Étoile' },
-  { slot: 'TREE_GOOD', label: '🌳 Arbre généreux' },
-  { slot: 'TREE_BAD', label: '🌳 Arbre maudit' },
-  { slot: 'MOLE', label: '🦫 Topi Taupe' },
-  { slot: 'BOO', label: '👻 Boo' },
-]
-
-/** Personnalisation des modèles 3D du plateau, directement au lobby. */
-function DecorModelsSection() {
-  const { bank } = useModels()
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3 }}
-      className="bg-night-900/80 relative z-10 mt-4 w-full max-w-6xl rounded-2xl p-4 shadow-xl backdrop-blur-sm"
-    >
-      <p className="text-cream/50 text-xs font-extrabold uppercase">
-        🧸 Modèles 3D du plateau{' '}
-        <span className="normal-case">
-          — banque : {bank.length > 0 ? `${bank.length} modèle${bank.length > 1 ? 's' : ''}` : 'vide (public/models/manifest.json)'} · upload .glb possible partout
-        </span>
-      </p>
-      <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 lg:grid-cols-3">
-        {LOBBY_DECOR_SLOTS.map(({ slot, label }) => (
-          <div key={slot} className="flex items-center gap-2">
-            <span className="w-32 shrink-0 truncate text-xs font-extrabold">{label}</span>
-            <div className="min-w-0 flex-1">
-              <ModelPicker slot={slot} compact />
-            </div>
-          </div>
-        ))}
-      </div>
-    </motion.section>
-  )
-}
 
 interface CardProps {
   index: number
