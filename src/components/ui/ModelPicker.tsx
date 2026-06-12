@@ -14,7 +14,7 @@ interface Props {
 }
 
 export function ModelPicker({ slot, compact = false }: Props) {
-  const { models, bank, setModel } = useModels()
+  const { models, bank, setModel, setModelFile } = useModels()
   const fileRef = useRef<HTMLInputElement>(null)
   const current = models[slot] ?? null
   // valeur du dropdown : un fichier de la banque, sinon ''
@@ -50,7 +50,8 @@ export function ModelPicker({ slot, compact = false }: Props) {
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0]
-          if (file) setModel(slot, URL.createObjectURL(file))
+          // setModelFile : persiste le .glb (IndexedDB) → survit au reload
+          if (file) setModelFile(slot, file)
           e.target.value = ''
         }}
       />

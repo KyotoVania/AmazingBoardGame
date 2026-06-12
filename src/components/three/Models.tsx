@@ -20,6 +20,7 @@ import {
 import * as THREE from 'three'
 import { assetUrl } from '../../game/assets'
 import type { PlayerId } from '../../game/types'
+import { clearSlot, persistSlotBlob, persistSlotPath, restoreSlots } from './modelStorage'
 
 /** Emplacements pouvant recevoir un modèle custom. */
 export type ModelSlot =
@@ -44,6 +45,8 @@ interface ModelsApi {
   /** Banque chargée depuis /models/manifest.json (vide si absent). */
   bank: ModelBankEntry[]
   setModel: (slot: ModelSlot, url: string | null) => void
+  /** Upload utilisateur : le .glb est persisté (IndexedDB) pour survivre au reload. */
+  setModelFile: (slot: ModelSlot, file: File) => void
 }
 
 const ModelsContext = createContext<ModelsApi | null>(null)
@@ -51,6 +54,13 @@ const ModelsContext = createContext<ModelsApi | null>(null)
 export function ModelsProvider({ children }: { children: ReactNode }) {
   const [models, setModels] = useState<Partial<Record<ModelSlot, string>>>({})
   const [bank, setBank] = useState<ModelBankEntry[]>([])
+
+  // Restauration des choix persistés (reload/crash : rien à re-setup)
+  useEffect(() => {
+    restoreSlots()
+      .then((restored) => setModels((prev) => ({ ...restored, ...prev })))
+      .catch(() => {})
+  }, [])
 
   // Banque de modèles : manifest optionnel, échec silencieux.
   useEffect(() => {
@@ -71,21 +81,33 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
       .catch(() => {})
   }, [])
 
+  const applyUrl = (slot: ModelSlot, url: string | null) =>
+    setModels((prev) => {
+      const old = prev[slot]
+      // libère les objectURL remplacés (pas les chemins /models/…)
+      if (old && old.startsWith('blob:') && old !== url) URL.revokeObjectURL(old)
+      const next = { ...prev }
+      if (url) next[slot] = url
+      else delete next[slot]
+      return next
+    })
+
   const api = useMemo<ModelsApi>(
     () => ({
       models,
       bank,
-      setModel: (slot, url) =>
-        setModels((prev) => {
-          const old = prev[slot]
-          // libère les objectURL remplacés (pas les chemins /models/…)
-          if (old && old.startsWith('blob:') && old !== url) URL.revokeObjectURL(old)
-          const next = { ...prev }
-          if (url) next[slot] = url
-          else delete next[slot]
-          return next
-        }),
+      setModel: (slot, url) => {
+        applyUrl(slot, url)
+        // persistance : chemins de banque en localStorage, reset = oubli
+        if (url && !url.startsWith('blob:')) persistSlotPath(slot, url)
+        else if (!url) clearSlot(slot)
+      },
+      setModelFile: (slot, file) => {
+        applyUrl(slot, URL.createObjectURL(file))
+        persistSlotBlob(slot, file)
+      },
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [models, bank],
   )
 
