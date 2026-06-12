@@ -167,6 +167,8 @@ function resetWalls(s: GameState): void {
 function prepareRoll(s: GameState, blockId: DiceBlockId): void {
   const p = current(s)
   const block = DICE_BLOCKS[blockId]
+  // capturé AVANT consommation : le dé bonus est ignoré sur lancer forcé
+  const wasForced = s.forcedRoll !== null
   let faceIndex: number
   let steps: number
   let faceCoins: number
@@ -196,7 +198,7 @@ function prepareRoll(s: GameState, blockId: DiceBlockId): void {
   // (pas une option). Consommé à l'usage. Ignoré si lancer forcé (debug /
   // dé truqué) pour garder un total prévisible — le bonus est conservé.
   let bonus: NonNullable<GameState['dice']>['bonus'] = null
-  if (p.rewardDice && s.forcedRoll === null) {
+  if (p.rewardDice && !wasForced) {
     const bonusBlock = DICE_BLOCKS[p.rewardDice]
     const bonusIndex = randInt(0, 5)
     bonus = {
@@ -1069,6 +1071,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...structuredClone(loaded),
         config: { ...base.config, ...structuredClone(loaded.config ?? base.config) },
         mode: s.mode, // on garde le mode courant (LIVE/DEBUG)
+        fx: null, // ne pas rejouer un effet visuel fantôme au restore
       }
       log(restored, '💾 Partie restaurée depuis la sauvegarde automatique', 'SYSTEM')
       return restored
