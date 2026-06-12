@@ -16,12 +16,22 @@ import { FittedModel, ModelErrorBoundary } from './Models'
 import { avatarTextureCache, circularImageTexture, spriteTexture } from './textures'
 
 /** Décalage par joueur pour éviter l'empilement sur une même case. */
-const OFFSETS: [number, number][] = [
+export const OFFSETS: [number, number][] = [
   [-0.26, -0.26],
   [0.26, -0.26],
   [-0.26, 0.26],
   [0.26, 0.26],
 ]
+
+/**
+ * Position MONDE exacte du pion d'un joueur (offset par joueur compris),
+ * pour que la caméra cadre le pion et non le centre de la case.
+ */
+export function pawnWorldPos(spaceId: string, playerIndex: number): [number, number, number] {
+  const [x, , z] = spaceWorldPos(spaceId)
+  const offset = OFFSETS[playerIndex % OFFSETS.length]
+  return [x + offset[0], 0.14, z + offset[1]]
+}
 const JUMP_HEIGHT = 0.95
 const HOP_MS = 430
 
