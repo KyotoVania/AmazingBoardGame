@@ -601,6 +601,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         if (action.itemId === 'FLY_GUY_TICKET' && target.inventory.length === 0) return state
         if (action.itemId === 'COINADO' && target.coins === 0) return state
       }
+      // doc SMP : "Can't use this while Peepa is in the way"
+      if (action.itemId === 'GOLDEN_DRINK' && p.peepaBy) return state
       p.inventory.splice(idx, 1)
       s.itemUsedThisTurn = true
       bumpStat(p, 'itemsUsed')
@@ -648,6 +650,18 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           p.trapped = false
           log(s, `${p.name} surgit du tuyau doré près de l'Étoile`, 'GOOD')
           popup(s, '🪈 Tuyau doré', pickNarrative('ITEM_GOLDEN_PIPE', { name: p.name }), 'GOOD')
+          break
+        }
+        case 'GOLDEN_DRINK': {
+          p.goldenDrink = true
+          popup(s, '🥤 Boisson dorée', pickNarrative('ITEM_GOLDEN_DRINK', { name: p.name }), 'GOOD')
+          break
+        }
+        case 'PEEPA_BELL': {
+          target!.peepaBy = p.id
+          // doc SMP : le Peepa empêche la Boisson dorée
+          target!.goldenDrink = false
+          popup(s, '🔔 Cloche Peepa', pickNarrative('ITEM_PEEPA', { name: p.name, target: target!.name }), 'GOOD')
           break
         }
         case 'ALLY_PHONE': {
@@ -749,6 +763,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       p.currentSpaceId = m.hopTo!
       m.hopTo = null
       m.remaining -= 1
+      // Boisson dorée : +1 pièce par case (doc SMP)
+      if (p.goldenDrink) addCoins(p, 1)
+      // Peepa : 1 pièce volée par case, au profit du sonneur de cloche
+      if (p.peepaBy) {
+        const stalker = s.players.find((pl) => pl.id === p.peepaBy)
+        if (stalker && p.coins > 0) {
+          p.coins -= 1
+          stalker.coins += 1
+        }
+      }
       if (!m.backward) {
         const arrived = getSpace(p.currentSpaceId)
         // Le mur : on s'arrête devant et on RELANCE un dé dédié (1-6)
@@ -1065,6 +1089,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       s.movement = null
       s.pending = null
       s.focusSpaceId = null
+      // effets "ce tour" : la Boisson dorée s'évente, le Peepa se lasse
+      const turnPlayer = current(s)
+      turnPlayer.goldenDrink = false
+      turnPlayer.peepaBy = null
       s.itemUsedThisTurn = false
       s.rollBonus = 0
       if (s.currentPlayerIndex < s.players.length - 1) {

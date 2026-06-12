@@ -114,6 +114,8 @@ export type ItemId =
   | 'HIDDEN_BLOCK_CARD'
   | 'CHOMP_CALL'
   | 'ALLY_PHONE'
+  | 'GOLDEN_DRINK'
+  | 'PEEPA_BELL'
 
 export interface ItemDef {
   id: ItemId
@@ -155,6 +157,10 @@ export interface Player {
   avatarUrl: string | null
   /** Champignon poison subi : -2 au prochain lancer. */
   poisoned: boolean
+  /** Boisson dorée (SMP) : +1 pièce par case parcourue ce tour. */
+  goldenDrink?: boolean
+  /** Un Peepa le suit (SMP) : 1 pièce volée par case, au profit de ce joueur. */
+  peepaBy?: PlayerId | null
   /** Coincé dans le trou : il faut un lancer suffisant pour sortir. */
   trapped: boolean
   /**

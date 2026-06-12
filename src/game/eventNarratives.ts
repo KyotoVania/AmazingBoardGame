@@ -353,6 +353,22 @@ export const NARRATIVES = {
     `Le Chomp débarque sur ordre de {name} ! L'Étoile prend ses jambes à son cou. Sabotage de qualité.`,
   ],
 
+  /** Boisson dorée — +1 pièce par case. Vars : {name} */
+  ITEM_GOLDEN_DRINK: [
+    `🥤 {name} descend la Boisson Dorée cul sec ! Chaque pas rapporte une pièce. L'alcoolisme qui PAIE, enfin.`,
+    `{name} brille littéralement de mille feux ! +1 pièce par case. T'es un distributeur ambulant.`,
+    `GLOU GLOU DORÉ ! {name} transpire des pièces à chaque pas. Dégueu mais rentable.`,
+    `{name} boit le smoothie doré ! Marche, ramasse, recommence. Le cardio le plus lucratif de ta vie.`,
+  ],
+
+  /** Cloche Peepa — un fantôme racketteur. Vars : {name}, {target} */
+  ITEM_PEEPA: [
+    `🔔 {name} sonne la cloche ! Un Peepa colle {target} et lui fauche 1 pièce PAR CASE. Harcèlement fantomatique.`,
+    `DING DING ! Le Peepa de {name} hante {target}. Chaque pas coûte une pièce. Cours, paye, pleure.`,
+    `{name} envoie un Peepa aux trousses de {target} ! Le racket est spectral mais les pièces sont réelles.`,
+    `Un Peepa s'accroche à {target} sur ordre de {name} ! Taxe fantôme : 1 pièce la case. Sans reçu.`,
+  ],
+
   /** Nouvel allié recruté. Vars : {name}, {ally} */
   ITEM_ALLY: [
     `🤝 {ally} rejoint l'équipe de {name} ! Un fan de plus dans ta secte, +1/+2 au dé.`,

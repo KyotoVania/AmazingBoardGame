@@ -161,6 +161,16 @@ function PlayerCard({
               ☠️ -2 au dé
             </span>
           )}
+          {player.goldenDrink && (
+            <span className="bg-gold-400/25 text-gold-300 rounded px-1.5 py-0.5 text-[10px] font-extrabold">
+              🥤 +1🪙/case
+            </span>
+          )}
+          {player.peepaBy && (
+            <span className="rounded bg-sky-500/25 px-1.5 py-0.5 text-[10px] font-extrabold text-sky-300">
+              👻 Peepa -1🪙/case
+            </span>
+          )}
         </div>
       </div>
     </motion.div>

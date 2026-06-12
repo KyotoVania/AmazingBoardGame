@@ -854,6 +854,53 @@ describe('alliés (règle SMP : +1/+2 au lancer)', () => {
   })
 })
 
+describe('Boisson dorée & Cloche Peepa (items SMP)', () => {
+  it('la Boisson dorée rapporte 1 pièce par case parcourue', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    s = reduce(
+      s,
+      { type: 'DEBUG_INJECT_ITEM', playerId: 'P1', itemId: 'GOLDEN_DRINK' },
+      { type: 'USE_ITEM', itemId: 'GOLDEN_DRINK' },
+      { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } },
+    )
+    const before = s.players[0].coins
+    s = walk(rollFrom(s, 'o04', 2)) // o05 (item) puis o06… non : 2 pas depuis o04 → o06
+    // 2 cases parcourues : +2 pièces de boisson (avant l'effet de la case d'arrivée)
+    expect(s.players[0].coins).toBeGreaterThanOrEqual(before + 2)
+  })
+
+  it('le Peepa racket 1 pièce par case au profit du sonneur, et expire en fin de tour', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    s = reduce(
+      s,
+      { type: 'DEBUG_INJECT_ITEM', playerId: 'P1', itemId: 'PEEPA_BELL' },
+      { type: 'USE_ITEM', itemId: 'PEEPA_BELL', targetId: 'P2' },
+      { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } },
+    )
+    expect(s.players[1].peepaBy).toBe('P1')
+    // P1 termine son tour, P2 joue : 2 cases = 2 pièces transférées
+    s = quickTurn(s)
+    const p1Before = s.players[0].coins
+    const p2Before = s.players[1].coins
+    s = walk(rollFrom({ ...s }, 'o04', 2))
+    // P2 (joueur courant) avance de 2 depuis o01 → atterrit sur o03 (bleue : +3)
+    // Peepa : -2 en chemin → net +1 pour P2, +2 pour P1 le sonneur
+    expect(s.players[1].coins).toBe(p2Before - 2 + 3)
+    expect(s.players[0].coins).toBe(p1Before + 2)
+  })
+
+  it('la Boisson dorée est bloquée quand un Peepa te colle (doc SMP)', () => {
+    let s = start()
+    s = reduce(s, { type: 'DEBUG_INJECT_ITEM', playerId: 'P1', itemId: 'GOLDEN_DRINK' })
+    s = { ...s, players: s.players.map((p) => (p.id === 'P1' ? { ...p, peepaBy: 'P2' as const } : p)) }
+    const before = s
+    s = gameReducer(s, { type: 'USE_ITEM', itemId: 'GOLDEN_DRINK' })
+    expect(s).toBe(before)
+  })
+})
+
 describe('Appel Chomp (signature Woody Woods)', () => {
   it('déplace l’Étoile sur un autre spot', () => {
     let s = start()
