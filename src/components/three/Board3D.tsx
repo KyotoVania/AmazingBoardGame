@@ -36,6 +36,7 @@ const SPACE_COLORS: Record<SpaceType, string> = {
   LUCKY: '#8bd44a',
   BAD_LUCK: '#7c2d4e',
   VS: '#f59022',
+  ALLY: '#e667a0',
   SIP_PLUS: '#d97706',
   SIP_MINUS: '#0d9488',
 }
@@ -47,6 +48,7 @@ const SPACE_LABELS: Partial<Record<SpaceType, { text: string; color?: string }>>
   LUCKY: { text: '🍀' },
   BAD_LUCK: { text: '💀' },
   VS: { text: 'VS' },
+  ALLY: { text: '🤝' },
   SIP_PLUS: { text: '🍺' },
   SIP_MINUS: { text: '🍻' },
 }

@@ -18,6 +18,7 @@ export type SpaceType =
   | 'LUCKY'
   | 'BAD_LUCK'
   | 'VS'
+  | 'ALLY'
   | 'SIP_PLUS'
   | 'SIP_MINUS'
 
@@ -112,6 +113,7 @@ export type ItemId =
   | 'GOLDEN_PIPE'
   | 'HIDDEN_BLOCK_CARD'
   | 'CHOMP_CALL'
+  | 'ALLY_PHONE'
 
 export interface ItemDef {
   id: ItemId
@@ -155,6 +157,11 @@ export interface Player {
   poisoned: boolean
   /** Coincé dans le trou : il faut un lancer suffisant pour sortir. */
   trapped: boolean
+  /**
+   * Alliés (règle SMP) : chaque allié ajoute +1 ou +2 au lancer et suit
+   * le pion en 3D. Optionnel pour la compat des saves.
+   */
+  allies?: CharacterId[]
   /** Compteurs de soirée (titres de fin de partie). Optionnel pour la compat des saves. */
   stats?: {
     itemsUsed: number

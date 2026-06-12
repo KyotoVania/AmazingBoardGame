@@ -815,6 +815,45 @@ describe('boutique de Flutter (doc SMP : achat au passage)', () => {
   })
 })
 
+describe('alliés (règle SMP : +1/+2 au lancer)', () => {
+  it('atterrir sur une case Alliée recrute un allié', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    const { from } = approachTo((sp) => sp.type === 'ALLY')
+    s = walk(rollFrom(s, from, 1))
+    expect(s.players[0].allies?.length).toBe(1)
+  })
+
+  it('le Téléphone Allié recrute, et les alliés boostent le lancer NON forcé', () => {
+    let s = start()
+    s = reduce(
+      s,
+      { type: 'DEBUG_INJECT_ITEM', playerId: 'P1', itemId: 'ALLY_PHONE' },
+      { type: 'USE_ITEM', itemId: 'ALLY_PHONE' },
+    )
+    expect(s.players[0].allies?.length).toBe(1)
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
+    // lancer non forcé : total = face + bonus allié (1 ou 2)
+    s = gameReducer(s, { type: 'ROLL_DICE', blockId: 'NORMAL' })
+    const bonus = (s.dice?.steps ?? 0) - (s.dice?.faceValue ?? 0)
+    expect(bonus).toBeGreaterThanOrEqual(1)
+    expect(bonus).toBeLessThanOrEqual(2)
+  })
+
+  it('le lancer FORCÉ fait taire les alliés (doc : Custom Dice Block)', () => {
+    let s = start()
+    s = reduce(
+      s,
+      { type: 'DEBUG_INJECT_ITEM', playerId: 'P1', itemId: 'ALLY_PHONE' },
+      { type: 'USE_ITEM', itemId: 'ALLY_PHONE' },
+      { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } },
+      { type: 'DEBUG_FORCE_ROLL', value: 4 },
+      { type: 'ROLL_DICE', blockId: 'NORMAL' },
+    )
+    expect(s.dice?.steps).toBe(4)
+  })
+})
+
 describe('Appel Chomp (signature Woody Woods)', () => {
   it('déplace l’Étoile sur un autre spot', () => {
     let s = start()

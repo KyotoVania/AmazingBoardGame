@@ -56,7 +56,7 @@ const SEEDS: SpaceSeed[] = [
   { id: 'o32', type: 'BLUE', x: 3.8, y: -6.0, next: ['o33', 'c11'], branchLabels: ['Route de l’est (spot étoile)', 'Plongée vers le centre'] },
   { id: 'o33', type: 'ITEM', x: 4.9, y: -5.8, next: ['o34'] },
   { id: 'o34', type: 'BLUE', x: 6.0, y: -5.6, next: ['o35'] },
-  { id: 'o35', type: 'BLUE', x: 7.0, y: -5.2, next: ['o36'] },
+  { id: 'o35', type: 'ALLY', x: 7.0, y: -5.2, next: ['o36'] },
   { id: 'o36', type: 'RED', x: 7.8, y: -4.5, next: ['o37'] },
   { id: 'o37', type: 'BLUE', x: 8.3, y: -3.6, next: ['o38'] },
   { id: 'o38', type: 'BLUE', x: 8.6, y: -2.6, next: ['o39'], starSpot: true },
@@ -115,7 +115,7 @@ const SEEDS: SpaceSeed[] = [
   { id: 'l08', type: 'BLUE', x: 7.7, y: 4.6, next: ['o45'] },
 
   // ----- Mini-boucle du départ -----
-  { id: 'q01', type: 'BLUE', x: 5.5, y: 5.7, next: ['q02'] },
+  { id: 'q01', type: 'ALLY', x: 5.5, y: 5.7, next: ['q02'] },
   { id: 'q02', type: 'BLUE', x: 4.9, y: 4.8, next: ['l06'], starSpot: true },
 ]
 

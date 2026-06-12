@@ -353,6 +353,14 @@ export const NARRATIVES = {
     `Le Chomp débarque sur ordre de {name} ! L'Étoile prend ses jambes à son cou. Sabotage de qualité.`,
   ],
 
+  /** Nouvel allié recruté. Vars : {name}, {ally} */
+  ITEM_ALLY: [
+    `🤝 {ally} rejoint l'équipe de {name} ! Un fan de plus dans ta secte, +1/+2 au dé.`,
+    `{name} recrute {ally} ! Il/elle te suivra partout. Même aux toilettes. Surtout aux toilettes.`,
+    `ALLIANCE ! {ally} jure fidélité à {name}. La fidélité d'un perso de jeu vidéo, hein.`,
+    `{ally} s'incruste dans la suite de {name} ! Plus on est de fous, plus le dé roule.`,
+  ],
+
   /** Boutique de Flutter — accueil. Vars : {name} */
   SHOP_WELCOME: [
     `🦋 « Bienvenue chez Flutter, {name} ! Tout est hors de prix mais t'es pas en état de négocier. »`,

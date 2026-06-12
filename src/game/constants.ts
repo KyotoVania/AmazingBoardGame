@@ -431,6 +431,16 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     price: 5,
     shopFrom: 0,
   },
+  ALLY_PHONE: {
+    id: 'ALLY_PHONE',
+    name: 'Téléphone Allié',
+    description: 'Appelle un allié : +1 ou +2 à chaque lancer !',
+    emoji: '📞',
+    needsTarget: false,
+    needsValue: false,
+    price: 4,
+    shopFrom: 0,
+  },
   CHOMP_CALL: {
     id: 'CHOMP_CALL',
     name: 'Appel Chomp',
@@ -531,6 +541,10 @@ export function defaultGameConfig(): GameConfig {
     cursedIntervalMin: 10,
   }
 }
+
+// ---------- Alliés (règle SMP : +1/+2 au lancer chacun) ----------
+
+export const MAX_ALLIES = 3
 
 // ---------- Boutique de Flutter (doc SMP : achat au passage) ----------
 

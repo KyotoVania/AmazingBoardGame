@@ -10,6 +10,7 @@ export const SPACE_TYPE_LABELS: Record<SpaceType, string> = {
   LUCKY: 'Case Chance',
   BAD_LUCK: 'Case Poisse',
   VS: 'Case VS',
+  ALLY: 'Case Alliée',
   SIP_PLUS: 'Gorgées !',
   SIP_MINUS: 'Distribution',
 }

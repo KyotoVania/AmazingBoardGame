@@ -122,6 +122,12 @@ function PlayerCard({
         <span title="Gorgées bues">🍺 {player.sipsTaken}</span>
         <span title="Gorgées distribuées">🫗 {player.sipsGiven}</span>
       </div>
+      {(player.allies?.length ?? 0) > 0 && (
+        <p className="mt-1 text-[11px] font-extrabold text-pink-300/90" title="Alliés : +1/+2 au lancer chacun">
+          🤝 {player.allies!.map((a) => CHARACTERS[a].emoji).join(' ')}{' '}
+          <span className="text-cream/50">(+{player.allies!.length}–{player.allies!.length * 2} au dé)</span>
+        </p>
+      )}
       {starDist >= 0 && (
         <p
           className="text-gold-300/80 mt-1 text-[11px] font-extrabold"

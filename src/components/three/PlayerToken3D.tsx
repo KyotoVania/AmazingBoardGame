@@ -10,7 +10,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { spaceWorldPos } from '../../game/board'
 import { CHARACTERS } from '../../game/constants'
-import type { Player } from '../../game/types'
+import type { CharacterId, Player } from '../../game/types'
 import { FittedModel, ModelErrorBoundary } from './Models'
 import { avatarTextureCache, circularImageTexture, spriteTexture } from './textures'
 
@@ -107,7 +107,42 @@ export function PlayerToken3D({ player, index, isCurrent, hopTo, modelUrl, onHop
         <spriteMaterial map={headTex} transparent depthWrite={false} />
       </sprite>
       {isCurrent && <CurrentRing color={player.color} />}
+      {/* La suite d'alliés : mini-pions qui trottinent derrière */}
+      {(player.allies ?? []).map((ally, i) => (
+        <AllyToken key={`${ally}-${i}`} character={ally} index={i} color={player.color} />
+      ))}
     </animated.group>
+  )
+}
+
+/** Mini-pion d'allié : version réduite qui suit le joueur. */
+const ALLY_OFFSETS: [number, number][] = [
+  [-0.42, 0.34],
+  [0.42, 0.34],
+  [0, 0.55],
+]
+
+function AllyToken({
+  character,
+  index,
+  color,
+}: {
+  character: CharacterId
+  index: number
+  color: string
+}) {
+  const [ox, oz] = ALLY_OFFSETS[index % ALLY_OFFSETS.length]
+  const tex = spriteTexture(CHARACTERS[character].emoji)
+  return (
+    <group position={[ox, 0, oz]} scale={0.45}>
+      <mesh castShadow position={[0, 0.3, 0]}>
+        <coneGeometry args={[0.24, 0.55, 16]} />
+        <meshStandardMaterial color={color} roughness={0.35} />
+      </mesh>
+      <sprite position={[0, 0.85, 0]} scale={[0.55, 0.55, 0.55]}>
+        <spriteMaterial map={tex} transparent depthWrite={false} />
+      </sprite>
+    </group>
   )
 }
 

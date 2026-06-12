@@ -20,8 +20,11 @@ import {
   ITEMS,
   ITEM_POOL,
   LUCKY_COINS,
+  MAX_ALLIES,
   MAX_INVENTORY,
   MINIGAME_CATEGORIES,
+  CHARACTERS,
+  CHARACTER_IDS,
   MOLE_COST_MAX,
   MOLE_COST_MIN,
   PODIUM_LAYOUTS,
@@ -239,6 +242,15 @@ function prepareRoll(s: GameState, blockId: DiceBlockId): void {
     log(s, `🎁 ${p.name} lance aussi son ${bonusBlock.label} : +${bonus.faceValue} !`, 'GOOD')
     p.rewardDice = null
   }
+  // Alliés (règle SMP) : chacun ajoute +1 ou +2. Le Dé truqué / lancer
+  // forcé les fait taire ("stops allies from rolling dice").
+  const allies = p.allies ?? []
+  if (allies.length > 0 && !wasForced) {
+    let allyBonus = 0
+    for (let i = 0; i < allies.length; i++) allyBonus += randInt(1, 2)
+    total += allyBonus
+    labels.push(`+${allyBonus} allié${allies.length > 1 ? 's' : ''}`)
+  }
   if (s.rollBonus > 0) {
     total += s.rollBonus
     labels.push(`+${s.rollBonus} champignon`)
@@ -387,6 +399,10 @@ function landOnSpace(s: GameState): void {
       s.pending = { kind: 'VS_WAGER', amount }
       break
     }
+    case 'ALLY':
+      // Règle SMP : la roulette d'alliés (ici : tirage direct)
+      gainAlly(s, p)
+      break
     case 'SIP_PLUS':
       p.sipsTaken += s.config.sipPlus
       setFx(s, 'SIPS', p, p, s.config.sipPlus)
@@ -417,6 +433,31 @@ function openKamekWheel(s: GameState, spaceId: string): void {
   ]
   s.focusSpaceId = spaceId
   s.pending = { kind: 'BAD_LUCK_WHEEL', options, resultIndex: randInt(0, options.length - 1) }
+}
+
+/** Recrute un allié (règle SMP) : perso libre, +1/+2 à chaque lancer. */
+function gainAlly(s: GameState, p: Player): void {
+  if (!p.allies) p.allies = []
+  const taken = new Set([
+    ...s.players.map((pl) => pl.character),
+    ...s.players.flatMap((pl) => pl.allies ?? []),
+  ])
+  const pool = CHARACTER_IDS.filter((id) => !taken.has(id))
+  if (p.allies.length >= MAX_ALLIES || pool.length === 0) {
+    addCoins(p, 5)
+    log(s, `${p.name} a déjà une suite complète : +5 pièces de consolation`, 'GOOD')
+    popup(s, '🤝 Allié', 'Ta suite est au complet ! Les groupies te laissent 5 pièces.', 'GOOD')
+    return
+  }
+  const ally = pick(pool)
+  p.allies.push(ally)
+  log(s, `🤝 ${CHARACTERS[ally].emoji} ${CHARACTERS[ally].name} rejoint ${p.name} ! (+1/+2 au lancer)`, 'GOOD')
+  popup(
+    s,
+    '🤝 Nouvel allié !',
+    pickNarrative('ITEM_ALLY', { name: p.name, ally: `${CHARACTERS[ally].emoji} ${CHARACTERS[ally].name}` }),
+    'GOOD',
+  )
 }
 
 /** Kamek maudit en secret des cases bleues banales (règle SMP). */
@@ -607,6 +648,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           p.trapped = false
           log(s, `${p.name} surgit du tuyau doré près de l'Étoile`, 'GOOD')
           popup(s, '🪈 Tuyau doré', pickNarrative('ITEM_GOLDEN_PIPE', { name: p.name }), 'GOOD')
+          break
+        }
+        case 'ALLY_PHONE': {
+          gainAlly(s, p)
           break
         }
         case 'CHOMP_CALL': {
