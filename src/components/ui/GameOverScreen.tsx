@@ -5,7 +5,92 @@
 
 import { motion } from 'framer-motion'
 import { CHARACTERS } from '../../game/constants'
+import type { Player } from '../../game/types'
 import { useGame } from '../../game/useGameState'
+
+interface Award {
+  emoji: string
+  title: string
+  player: Player
+  value: string
+  snark: string
+}
+
+/** Les Titres de la soirée : superlatifs calculés sur les compteurs. */
+function computeAwards(players: Player[]): Award[] {
+  const maxBy = (fn: (p: Player) => number) =>
+    [...players].sort((a, b) => fn(b) - fn(a))[0]
+  const minBy = (fn: (p: Player) => number) =>
+    [...players].sort((a, b) => fn(a) - fn(b))[0]
+  const st = (p: Player) => p.stats ?? { itemsUsed: 0, pitFalls: 0, wallsBroken: 0 }
+
+  const awards: Award[] = []
+  const sponge = maxBy((p) => p.sipsTaken)
+  awards.push({
+    emoji: '🧽',
+    title: "L'Éponge d'or",
+    player: sponge,
+    value: `${sponge.sipsTaken} gorgées bues`,
+    snark: 'Ton foie a porté cette soirée.',
+  })
+  const dealer = maxBy((p) => p.sipsGiven)
+  awards.push({
+    emoji: '🍻',
+    title: 'Le Dealer',
+    player: dealer,
+    value: `${dealer.sipsGiven} gorgées distribuées`,
+    snark: "Généreux, mais pas avec ce qu'il faut.",
+  })
+  const rich = maxBy((p) => p.coins)
+  awards.push({
+    emoji: '🤑',
+    title: 'Le Picsou',
+    player: rich,
+    value: `${rich.coins} pièces au compteur`,
+    snark: 'Radin un jour, radin toujours.',
+  })
+  const broke = minBy((p) => p.coins)
+  if (broke.id !== rich.id) {
+    awards.push({
+      emoji: '🪫',
+      title: 'Le Fauché',
+      player: broke,
+      value: `${broke.coins} pièces restantes`,
+      snark: "Même le jeu n'a pas voulu de toi.",
+    })
+  }
+  const digger = maxBy((p) => st(p).pitFalls)
+  if (st(digger).pitFalls > 0) {
+    awards.push({
+      emoji: '🕳️',
+      title: 'Le Spéléologue',
+      player: digger,
+      value: `${st(digger).pitFalls} chute${st(digger).pitFalls > 1 ? 's' : ''} dans le trou`,
+      snark: 'Le fond, tu connais.',
+    })
+  }
+  const wrecker = maxBy((p) => st(p).wallsBroken)
+  if (st(wrecker).wallsBroken > 0) {
+    awards.push({
+      emoji: '💥',
+      title: 'Le Démolisseur',
+      player: wrecker,
+      value: `${st(wrecker).wallsBroken} mur${st(wrecker).wallsBroken > 1 ? 's' : ''} pulvérisé${st(wrecker).wallsBroken > 1 ? 's' : ''}`,
+      snark: 'Les portes, ça existe pourtant.',
+    })
+  }
+  const consumer = maxBy((p) => st(p).itemsUsed)
+  if (st(consumer).itemsUsed > 0) {
+    awards.push({
+      emoji: '🧪',
+      title: 'Le Consommateur',
+      player: consumer,
+      value: `${st(consumer).itemsUsed} item${st(consumer).itemsUsed > 1 ? 's' : ''} utilisé${st(consumer).itemsUsed > 1 ? 's' : ''}`,
+      snark: 'Aucune modération, comme pour le reste.',
+    })
+  }
+  return awards
+}
 
 export function GameOverScreen() {
   const { state, restart } = useGame()
@@ -13,8 +98,7 @@ export function GameOverScreen() {
     (a, b) => b.stars - a.stars || b.coins - a.coins,
   )
   const winners = state.winners ?? []
-  const sponge = [...state.players].sort((a, b) => b.sipsTaken - a.sipsTaken)[0]
-  const dealer = [...state.players].sort((a, b) => b.sipsGiven - a.sipsGiven)[0]
+  const awards = computeAwards(state.players)
 
   return (
     <div className="from-night-950 to-night-900 absolute inset-0 z-40 flex flex-col items-center justify-center bg-gradient-to-b p-8">
@@ -62,15 +146,37 @@ export function GameOverScreen() {
         ))}
       </div>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1 }}
-        className="text-cream/75 mt-6 flex gap-8 text-base font-bold"
-      >
-        <span>🧽 Éponge d'or : {sponge?.name} ({sponge?.sipsTaken} gorgées bues)</span>
-        <span>🍻 Distributeur fou : {dealer?.name} ({dealer?.sipsGiven} données)</span>
-      </motion.div>
+      {/* 🏆 La cérémonie des Titres de la soirée */}
+      <div className="mt-7 w-full max-w-4xl">
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1 }}
+          className="text-gold-300/85 text-center text-sm font-extrabold tracking-[0.3em] uppercase"
+        >
+          🏆 Les Titres de la soirée 🏆
+        </motion.p>
+        <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3">
+          {awards.map((a, i) => (
+            <motion.div
+              key={a.title}
+              initial={{ opacity: 0, y: 24, rotate: -3 }}
+              animate={{ opacity: 1, y: 0, rotate: 0 }}
+              transition={{ delay: 1.1 + i * 0.25, type: 'spring', stiffness: 220 }}
+              className="bg-night-800/90 rounded-2xl px-4 py-3 text-center shadow-lg"
+              style={{ borderTop: `4px solid ${a.player.color}` }}
+            >
+              <span className="text-3xl">{a.emoji}</span>
+              <p className="font-display text-gold-300 text-lg leading-tight">{a.title}</p>
+              <p className="text-base font-extrabold" style={{ color: a.player.color }}>
+                {a.player.name}
+              </p>
+              <p className="text-cream/70 text-xs font-bold">{a.value}</p>
+              <p className="text-cream/45 mt-0.5 text-[11px] font-semibold italic">{a.snark}</p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
 
       <motion.button
         initial={{ opacity: 0 }}

@@ -129,6 +129,28 @@ function addCoins(p: Player, delta: number): void {
   p.coins = Math.max(0, p.coins + delta)
 }
 
+/** Incrémente un compteur de soirée (compat saves : stats optionnel). */
+function bumpStat(p: Player, key: keyof NonNullable<Player['stats']>): void {
+  if (!p.stats) p.stats = { itemsUsed: 0, pitFalls: 0, wallsBroken: 0 }
+  p.stats[key] += 1
+}
+
+// ---------- Twist de DERNIÈRE MANCHE (tout se joue maintenant) ----------
+
+export function isFinalRound(s: GameState): boolean {
+  return s.round >= s.maxRounds
+}
+
+/** Étoile à moitié prix en dernière manche. */
+export function effectiveStarCost(s: GameState): number {
+  return isFinalRound(s) ? Math.ceil(s.config.starCost / 2) : s.config.starCost
+}
+
+/** Cases rouges DOUBLÉES en dernière manche. */
+export function effectiveRedCoins(s: GameState): number {
+  return isFinalRound(s) ? s.config.redCoins * 2 : s.config.redCoins
+}
+
 function setFx(s: GameState, kind: FxEvent['kind'], from: Player, to: Player, amount?: number): void {
   s.fx = {
     id: s.logSeq++,
@@ -302,11 +324,17 @@ function landOnSpace(s: GameState): void {
       log(s, `${p.name} gagne ${s.config.blueCoins} pièces (case bleue)`, 'GOOD')
       popup(s, '🔵 Case Bleue', pickNarrative('BLUE', { name: p.name, amount: s.config.blueCoins }), 'GOOD')
       break
-    case 'RED':
-      addCoins(p, -s.config.redCoins)
-      log(s, `${p.name} perd ${s.config.redCoins} pièces (case rouge)`, 'BAD')
-      popup(s, '🔴 Case Rouge', pickNarrative('RED', { name: p.name, amount: s.config.redCoins }), 'BAD')
+    case 'RED': {
+      const redLoss = effectiveRedCoins(s)
+      addCoins(p, -redLoss)
+      log(
+        s,
+        `${p.name} perd ${redLoss} pièces (case rouge${isFinalRound(s) ? ' ×2 dernière manche' : ''})`,
+        'BAD',
+      )
+      popup(s, '🔴 Case Rouge', pickNarrative('RED', { name: p.name, amount: redLoss }), 'BAD')
       break
+    }
     case 'ITEM': {
       if (p.inventory.length >= MAX_INVENTORY) {
         popup(s, '🍄 Case Item', pickNarrative('ITEM_FULL', { name: p.name }), 'NEUTRAL')
@@ -408,6 +436,7 @@ function resolveEvent(s: GameState, space: BoardSpace, wasBackward: boolean): vo
     }
     case 'PIT': {
       p.trapped = true
+      bumpStat(p, 'pitFalls')
       s.focusSpaceId = space.id
       setFx(s, 'PIT_FALL', p, p)
       log(s, `🕳️ ${p.name} tombe dans le trou !`, 'BAD')
@@ -468,6 +497,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         rewardDice: null,
         poisoned: false,
         trapped: false,
+        stats: { itemsUsed: 0, pitFalls: 0, wallsBroken: 0 },
       }))
       fresh.starSpaceId = pick(STAR_SPOTS)
       rerollSignposts(fresh)
@@ -494,6 +524,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       }
       p.inventory.splice(idx, 1)
       s.itemUsedThisTurn = true
+      bumpStat(p, 'itemsUsed')
       log(s, `${p.name} utilise ${item.emoji} ${item.name}`, 'NEUTRAL')
       switch (action.itemId) {
         case 'DASH_MUSHROOM':
@@ -744,14 +775,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           return s
         }
         case 'STAR': {
-          if (choice.buy && p.coins >= s.config.starCost) {
-            addCoins(p, -s.config.starCost)
+          if (choice.buy && p.coins >= effectiveStarCost(s)) {
+            addCoins(p, -effectiveStarCost(s))
             p.stars += 1
             setFx(s, 'STAR_BUY', p, p)
             const others = STAR_SPOTS.filter((id) => id !== s.starSpaceId)
             s.starSpaceId = pick(others)
             log(s, `⭐ ${p.name} achète une Étoile ! Toadette déménage…`, 'GOOD')
-            popup(s, '⭐ Étoile !', pickNarrative('STAR_BUY', { name: p.name, cost: s.config.starCost }), 'GOOD')
+            popup(s, '⭐ Étoile !', pickNarrative('STAR_BUY', { name: p.name, cost: effectiveStarCost(s) }), 'GOOD')
           } else {
             continueOrLand(s)
           }
@@ -784,6 +815,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           }
           if (roll >= strength) {
             s.walls[pending.spaceId] = 0
+            bumpStat(p, 'wallsBroken')
             setFx(s, 'WALL_BREAK', p, p, roll)
             log(s, `💥 ${p.name} CASSE le mur (jet ${roll} ≥ ${strength}) !`, 'GOOD')
             popup(

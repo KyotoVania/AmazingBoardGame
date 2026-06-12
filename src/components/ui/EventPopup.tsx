@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { SIGNPOST_FORK_IDS, getSpace } from '../../game/board'
 import { ITEMS, TREE_COIN_FRUIT } from '../../game/constants'
 import { EVENT_CHARACTERS, type EventCharacterId } from '../../game/eventImages'
+import { effectiveStarCost, isFinalRound } from '../../game/reducer'
 import { pickNarrative } from '../../game/eventNarratives'
 import { effectiveSpaceType, getCurrentPlayer } from '../../game/reducer'
 import type { BadLuckOutcome, PendingAction, Player, PlayerId, PopupTone } from '../../game/types'
@@ -240,18 +241,21 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
       )
     }
 
-    case 'STAR_PROMPT':
+    case 'STAR_PROMPT': {
+      const cost = effectiveStarCost(state)
       return (
         <>
           <p className="text-cream/90 mt-1 text-lg font-bold">
-            « Une Étoile pour {state.config.starCost} pièces, ça te dit ? » (tu as {player.coins} 🪙)
+            « Une Étoile pour {cost} pièces
+            {isFinalRound(state) ? ' — PROMO DERNIÈRE MANCHE, -50 % !' : ''}, ça te dit ? » (tu as{' '}
+            {player.coins} 🪙)
           </p>
           <div className="mt-3 flex gap-3">
             <WideButton
-              disabled={player.coins < state.config.starCost}
+              disabled={player.coins < cost}
               onClick={() => resolvePending({ kind: 'STAR', buy: true })}
             >
-              ⭐ ACHETER — {state.config.starCost} 🪙
+              ⭐ ACHETER — {cost} 🪙
             </WideButton>
             <WideButton ghost onClick={() => resolvePending({ kind: 'STAR', buy: false })}>
               Plus tard…
@@ -259,6 +263,7 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
           </div>
         </>
       )
+    }
 
     case 'VS_WAGER':
       return (

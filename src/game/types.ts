@@ -148,6 +148,12 @@ export interface Player {
   poisoned: boolean
   /** Coincé dans le trou : il faut un lancer suffisant pour sortir. */
   trapped: boolean
+  /** Compteurs de soirée (titres de fin de partie). Optionnel pour la compat des saves. */
+  stats?: {
+    itemsUsed: number
+    pitFalls: number
+    wallsBroken: number
+  }
 }
 
 export interface LobbyPlayerConfig {

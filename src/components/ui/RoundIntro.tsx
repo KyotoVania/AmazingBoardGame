@@ -9,7 +9,7 @@
 
 import { motion } from 'framer-motion'
 import { SIGNPOST_FORK_IDS, getSpace } from '../../game/board'
-import { effectiveSpaceType } from '../../game/reducer'
+import { effectiveSpaceType, isFinalRound } from '../../game/reducer'
 import { useGame } from '../../game/useGameState'
 import { SPACE_TYPE_LABELS, arrowFor } from './labels'
 
@@ -30,6 +30,21 @@ export function RoundIntro() {
         <h2 className="font-display text-gold-300 mt-1 text-6xl tracking-wide drop-shadow-[0_4px_0_rgba(0,0,0,0.45)]">
           Manche {state.round}/{state.maxRounds}
         </h2>
+
+        {isFinalRound(state) && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: [0, 1.15, 1] }}
+            transition={{ delay: 0.4, type: 'spring', stiffness: 240 }}
+            className="mt-3 rounded-2xl bg-red-500/20 px-4 py-2.5 ring-2 ring-red-400/60"
+          >
+            <p className="font-display text-2xl tracking-wide text-red-300">🔥 DERNIÈRE MANCHE 🔥</p>
+            <p className="text-cream/85 mt-0.5 text-sm font-extrabold">
+              L'Étoile est à <span className="text-gold-300">-50 %</span> et les cases rouges font{' '}
+              <span className="text-red-300">double dégâts</span>. Tout se joue maintenant !
+            </p>
+          </motion.div>
+        )}
 
         {/* Les panneaux ont pivoté */}
         <div className="mt-5 text-left">
