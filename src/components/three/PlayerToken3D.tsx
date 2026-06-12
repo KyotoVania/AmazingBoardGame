@@ -10,7 +10,8 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { spaceWorldPos } from '../../game/board'
 import { CHARACTERS } from '../../game/constants'
-import type { CharacterId, Player } from '../../game/types'
+import type { Player } from '../../game/types'
+import { AllyEntourage } from './AllyEntourage'
 import { FittedModel, ModelErrorBoundary } from './Models'
 import { avatarTextureCache, circularImageTexture, spriteTexture } from './textures'
 
@@ -88,61 +89,37 @@ export function PlayerToken3D({ player, index, isCurrent, hopTo, modelUrl, onHop
   const headTex = avatarTex ?? charTex
 
   return (
-    <animated.group position-x={x} position-y={y} position-z={z}>
-      {modelUrl ? (
-        // Modèle .glb custom : normalisé par FittedModel, pion par défaut en
-        // attendant (et en secours si le fichier est introuvable/cassé)
-        <ModelErrorBoundary key={modelUrl} fallback={<DefaultPawn color={player.color} />}>
-          <Suspense fallback={<DefaultPawn color={player.color} />}>
-            <FittedModel url={modelUrl} height={1.05} />
-          </Suspense>
-        </ModelErrorBoundary>
-      ) : (
-        <DefaultPawn color={player.color} />
-      )}
-      <sprite
-        position={[0, modelUrl ? 1.5 : 1.26, 0]}
-        scale={avatarTex ? [0.66, 0.66, 0.66] : [0.5, 0.5, 0.5]}
-      >
-        <spriteMaterial map={headTex} transparent depthWrite={false} />
-      </sprite>
-      {isCurrent && <CurrentRing color={player.color} />}
-      {/* La suite d'alliés : mini-pions qui trottinent derrière */}
-      {(player.allies ?? []).map((ally, i) => (
-        <AllyToken key={`${ally}-${i}`} character={ally} index={i} color={player.color} />
-      ))}
-    </animated.group>
-  )
-}
-
-/** Mini-pion d'allié : version réduite qui suit le joueur. */
-const ALLY_OFFSETS: [number, number][] = [
-  [-0.42, 0.34],
-  [0.42, 0.34],
-  [0, 0.55],
-]
-
-function AllyToken({
-  character,
-  index,
-  color,
-}: {
-  character: CharacterId
-  index: number
-  color: string
-}) {
-  const [ox, oz] = ALLY_OFFSETS[index % ALLY_OFFSETS.length]
-  const tex = spriteTexture(CHARACTERS[character].emoji)
-  return (
-    <group position={[ox, 0, oz]} scale={0.45}>
-      <mesh castShadow position={[0, 0.3, 0]}>
-        <coneGeometry args={[0.24, 0.55, 16]} />
-        <meshStandardMaterial color={color} roughness={0.35} />
-      </mesh>
-      <sprite position={[0, 0.85, 0]} scale={[0.55, 0.55, 0.55]}>
-        <spriteMaterial map={tex} transparent depthWrite={false} />
-      </sprite>
-    </group>
+    <>
+      <animated.group position-x={x} position-y={y} position-z={z}>
+        {modelUrl ? (
+          // Modèle .glb custom : normalisé par FittedModel, pion par défaut en
+          // attendant (et en secours si le fichier est introuvable/cassé)
+          <ModelErrorBoundary key={modelUrl} fallback={<DefaultPawn color={player.color} />}>
+            <Suspense fallback={<DefaultPawn color={player.color} />}>
+              <FittedModel url={modelUrl} height={1.05} />
+            </Suspense>
+          </ModelErrorBoundary>
+        ) : (
+          <DefaultPawn color={player.color} />
+        )}
+        <sprite
+          position={[0, modelUrl ? 1.5 : 1.26, 0]}
+          scale={avatarTex ? [0.66, 0.66, 0.66] : [0.5, 0.5, 0.5]}
+        >
+          <spriteMaterial map={headTex} transparent depthWrite={false} />
+        </sprite>
+        {isCurrent && <CurrentRing color={player.color} />}
+      </animated.group>
+      {/* La suite d'alliés vit en repère MONDE (hors du group animé du pion)
+          pour traîner derrière lui en file indienne, et débarquer en courant
+          depuis le bord du plateau. */}
+      <AllyEntourage
+        allies={player.allies ?? []}
+        color={player.color}
+        leaderX={x}
+        leaderZ={z}
+      />
+    </>
   )
 }
 

@@ -8,6 +8,7 @@ import { Canvas } from '@react-three/fiber'
 import { spaceWorldPos } from '../../game/board'
 import { getCurrentPlayer } from '../../game/reducer'
 import type { GameApi } from '../../game/useGameState'
+import { AllyDice3D } from './AllyDice3D'
 import { Board3D } from './Board3D'
 import { CameraRig } from './CameraRig'
 import { Dice3D } from './Dice3D'
@@ -66,7 +67,11 @@ export function GameCanvas({ api }: { api: GameApi }) {
         />
       ))}
       {state.phase === 'ROLLING' && state.dice && (
-        <Dice3D dice={state.dice} position={dicePos} onLanded={api.diceLanded} />
+        <group position={dicePos}>
+          <Dice3D dice={state.dice} position={[0, 0, 0]} onLanded={api.diceLanded} />
+          {/* Mini-dés des alliés : tournoient à côté, valeur (1/2) lue du moteur. */}
+          <AllyDice3D dice={state.dice} allyCount={(player?.allies ?? []).length} />
+        </group>
       )}
       <CameraRig state={state} />
     </Canvas>
