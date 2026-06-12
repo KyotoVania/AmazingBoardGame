@@ -206,3 +206,53 @@ export function woodTexture(): THREE.CanvasTexture {
   cache.set(key, tex)
   return tex
 }
+
+/** Dôme céleste cartoon : dégradé nuit festive + étoiles peintes. */
+export function skyDomeTexture(): THREE.CanvasTexture {
+  const key = 'skydome'
+  const cached = cache.get(key)
+  if (cached) return cached
+  const canvas = document.createElement('canvas')
+  canvas.width = 1024
+  canvas.height = 512
+  const ctx = canvas.getContext('2d')!
+  // zénith (haut de l'image) → horizon rosé (vers 60%) → bas brun sombre
+  const g = ctx.createLinearGradient(0, 0, 0, 512)
+  g.addColorStop(0, '#0d1535')
+  g.addColorStop(0.32, '#1f1d4e')
+  g.addColorStop(0.52, '#45295c')
+  g.addColorStop(0.62, '#8a4a6e')
+  g.addColorStop(0.7, '#3a2547')
+  g.addColorStop(1, '#171028')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, 1024, 512)
+  // étoiles (déterministes) dans la moitié haute
+  let seed = 42
+  const rnd = () => {
+    seed = (seed * 16807) % 2147483647
+    return seed / 2147483647
+  }
+  for (let i = 0; i < 260; i++) {
+    const x = rnd() * 1024
+    const y = rnd() * 300
+    const r = 0.5 + rnd() * 1.4
+    ctx.fillStyle = `rgba(255, 244, 214, ${0.25 + rnd() * 0.7})`
+    ctx.beginPath()
+    ctx.arc(x, y, r, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  // quelques grosses étoiles scintillantes
+  for (let i = 0; i < 8; i++) {
+    const x = rnd() * 1024
+    const y = rnd() * 220
+    ctx.fillStyle = 'rgba(255, 250, 230, 0.95)'
+    ctx.beginPath()
+    ctx.arc(x, y, 2.2, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillRect(x - 5, y - 0.5, 10, 1)
+    ctx.fillRect(x - 0.5, y - 5, 1, 10)
+  }
+  const tex = finalize(canvas)
+  cache.set(key, tex)
+  return tex
+}

@@ -78,7 +78,8 @@ try {
   await page.waitForTimeout(400)
 
   await page.getByRole('button', { name: /LANCER LA PARTIE/ }).click()
-  await page.waitForTimeout(2600)
+  // premier rendu : les .glb KayKit se chargent (lent sous SwiftShader)
+  await page.waitForTimeout(7000)
   await page.screenshot({ path: 'smoke-2-board.png' })
 
   await page.keyboard.press('`')

@@ -5,7 +5,7 @@
 // ============================================================
 
 import { Suspense, useMemo, useRef, useState } from 'react'
-import { Html, Sparkles } from '@react-three/drei'
+import { Html, Sparkles, useGLTF } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import {
@@ -477,7 +477,13 @@ function EventTrees({ goodUrl, badUrl }: { goodUrl: string | null; badUrl: strin
       <group position={[gx - 1.3, 0, gy + 1.5]}>
         <CustomOrDefault url={goodUrl} height={3.4}>
           <group>
-            <Tree position={[0, 0, 0]} scale={2.1} foliage="#2e7d32" variant="round" />
+            <ModelErrorBoundary
+              fallback={<Tree position={[0, 0, 0]} scale={2.1} foliage="#2e7d32" variant="round" />}
+            >
+              <Suspense fallback={null}>
+                <FittedModel url={assetUrl('/models/kaykit/grand-arbre.glb')} height={3.4} />
+              </Suspense>
+            </ModelErrorBoundary>
             <mesh position={[0.45, 2.3, 0.25]} castShadow>
               <sphereGeometry args={[0.12, 10, 8]} />
               <meshStandardMaterial color="#ef5350" />
@@ -496,7 +502,19 @@ function EventTrees({ goodUrl, badUrl }: { goodUrl: string | null; badUrl: strin
       {/* L'arbre maudit, au cœur de ses 3 cases */}
       <group position={[bx - 1.4, 0, by - 1.4]}>
         <CustomOrDefault url={badUrl} height={3.5}>
-          <Tree position={[0, 0, 0]} scale={2.2} foliage="#5b2a86" trunk="#3b2417" variant="round" />
+          <ModelErrorBoundary
+            fallback={
+              <Tree position={[0, 0, 0]} scale={2.2} foliage="#5b2a86" trunk="#3b2417" variant="round" />
+            }
+          >
+            <Suspense fallback={null}>
+              <FittedModel
+                url={assetUrl('/models/kaykit/arbre-mort-a.glb')}
+                height={3.5}
+                tint="#7c3aed"
+              />
+            </Suspense>
+          </ModelErrorBoundary>
         </CustomOrDefault>
         <pointLight position={[0, 2.4, 0]} color="#9c4dcc" intensity={3} distance={6} />
       </group>
@@ -654,18 +672,36 @@ const ROCKS: [number, number, number][] = [
   [-0.8, 5.0, 0.8],
 ]
 
+/** Essences KayKit de la forêt d'enceinte (cycle déterministe). */
+const FOREST_MODELS = ['arbre-a', 'sapin-a', 'grand-arbre', 'arbre-b', 'sapin-b', 'arbre-rond']
+// préchargement : évite le pop-in des arbres au premier rendu
+for (const m of [...FOREST_MODELS, 'arbre-mort-a']) {
+  useGLTF.preload(assetUrl(`/models/kaykit/${m}.glb`))
+}
+
 function DecorTrees() {
   return (
     <group>
       {DECOR.map(([x, z, sc, c], i) => (
-        <Tree
-          key={i}
-          position={[x, 0, z]}
-          scale={sc}
-          foliage={c}
-          variant={i % 3 === 1 ? 'round' : 'pine'}
-          twist={(i * 1.7) % Math.PI}
-        />
+        <group key={i} position={[x, 0, z]} rotation-y={(i * 1.7) % Math.PI}>
+          <ModelErrorBoundary
+            fallback={
+              <Tree
+                position={[0, 0, 0]}
+                scale={sc}
+                foliage={c}
+                variant={i % 3 === 1 ? 'round' : 'pine'}
+              />
+            }
+          >
+            <Suspense fallback={null}>
+              <FittedModel
+                url={assetUrl(`/models/kaykit/${FOREST_MODELS[i % FOREST_MODELS.length]}.glb`)}
+                height={2.1 * sc}
+              />
+            </Suspense>
+          </ModelErrorBoundary>
+        </group>
       ))}
       {BUSHES.map(([x, z, sc], i) => (
         <Bush key={`b${i}`} position={[x, 0, z]} scale={sc} color={i % 2 ? '#2d4f26' : '#355e2a'} />

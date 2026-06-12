@@ -3,10 +3,12 @@
 // traverse pas le renderer R3F : l'API du jeu est passée en props.
 // ============================================================
 
-import { Stars } from '@react-three/drei'
+import { useEffect, useMemo, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing'
+import * as THREE from 'three'
 import { spaceWorldPos } from '../../game/board'
+import { assetUrl } from '../../game/assets'
 import { getCurrentPlayer } from '../../game/reducer'
 import type { GameApi } from '../../game/useGameState'
 import { AllyDice3D } from './AllyDice3D'
@@ -15,6 +17,7 @@ import { CameraRig } from './CameraRig'
 import { Dice3D } from './Dice3D'
 import { useModels } from './Models'
 import { PlayerToken3D } from './PlayerToken3D'
+import { skyDomeTexture, spriteTexture } from './textures'
 
 export function GameCanvas({ api }: { api: GameApi }) {
   const { state } = api
@@ -37,10 +40,10 @@ export function GameCanvas({ api }: { api: GameApi }) {
       camera={{ position: [0, 23, 19], fov: 42 }}
       gl={{ powerPreference: 'high-performance' }}
     >
-      <color attach="background" args={['#0a1410']} />
-      <fog attach="fog" args={['#0a1410', 46, 105]} />
-      {/* nuit étoilée au-dessus de la forêt */}
-      <Stars radius={130} depth={50} count={1600} factor={3.2} saturation={0.4} fade speed={0.5} />
+      <color attach="background" args={['#171028']} />
+      <fog attach="fog" args={['#241f44', 46, 105]} />
+      {/* ciel cartoon : dôme dégradé + lune (ou skybox custom de l'utilisateur) */}
+      <SkyDome />
       <ambientLight intensity={0.42} color="#bcd4e8" />
       <hemisphereLight args={['#cfe5ff', '#28401f', 0.5]} />
       {/* clé chaude (lanterne de fête) */}
@@ -100,5 +103,53 @@ export function GameCanvas({ api }: { api: GameApi }) {
         <Vignette eskil={false} offset={0.18} darkness={0.5} />
       </EffectComposer>
     </Canvas>
+  )
+}
+
+// ============================================================
+// SkyDome — Le ciel : skybox custom (public/images/skybox.png,
+// panorama équirectangulaire) si présente, sinon dôme cartoon
+// procédural (dégradé nuit festive + étoiles + grosse lune).
+// ============================================================
+
+function SkyDome() {
+  const [custom, setCustom] = useState<THREE.Texture | null>(null)
+  useEffect(() => {
+    let alive = true
+    // HEAD d'abord : un 404 de TextureLoader pollue la console (et le smoke)
+    fetch(assetUrl('/images/skybox.png'), { method: 'HEAD' })
+      .then((r) => {
+        if (!r.ok || !alive) return
+        new THREE.TextureLoader().load(assetUrl('/images/skybox.png'), (t) => {
+          t.colorSpace = THREE.SRGBColorSpace
+          if (alive) setCustom(t)
+        })
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+  const domeTex = useMemo(() => skyDomeTexture(), [])
+  const moonTex = useMemo(() => spriteTexture('🌕'), [])
+
+  return (
+    <group>
+      <mesh>
+        <sphereGeometry args={[110, 32, 24]} />
+        <meshBasicMaterial
+          map={custom ?? domeTex}
+          side={THREE.BackSide}
+          fog={false}
+          toneMapped={false}
+          depthWrite={false}
+        />
+      </mesh>
+      {!custom && (
+        <sprite position={[48, 42, -70]} scale={[9, 9, 9]}>
+          <spriteMaterial map={moonTex} transparent depthWrite={false} fog={false} />
+        </sprite>
+      )}
+    </group>
   )
 }
