@@ -21,6 +21,19 @@ import type { BoardSpace } from './types'
 /** Une case telle qu'éditée : `next` = arêtes du sens de circulation. */
 export type BoardSeed = Omit<BoardSpace, 'nextSpaces'> & { next: string[] }
 
+/** Élément de décor posé librement sur la map (modèle de la banque). */
+export interface DecorItem {
+  id: string
+  /** Chemin BRUT du .glb tel que listé dans public/models/manifest.json. */
+  file: string
+  x: number
+  y: number
+  /** Hauteur monde approximative du modèle (FittedModel). */
+  scale: number
+  /** Rotation autour de Y, en degrés. */
+  rotY: number
+}
+
 /** Un plateau complet, sérialisable (éditeur de map / export JSON). */
 export interface BoardDef {
   name: string
@@ -29,6 +42,8 @@ export interface BoardDef {
   seeds: BoardSeed[]
   /** Tronçons praticables dans les deux sens : l'arête inverse est ajoutée. */
   twoWayPairs: [string, string][]
+  /** Décor 3D purement cosmétique (assets KayKit & co). */
+  decor?: DecorItem[]
 }
 
 // ---------- Woody Woods (plateau par défaut) ----------

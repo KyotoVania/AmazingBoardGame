@@ -18,9 +18,11 @@ import {
   TREE_BAD_IDS,
   TREE_GOOD_IDS,
   WALL_SPACE_IDS,
+  getActiveBoardDef,
   getSpace,
   spaceWorldPos,
 } from '../../game/board'
+import { assetUrl } from '../../game/assets'
 import { effectiveSpaceType, getCurrentPlayer } from '../../game/reducer'
 import type { GameState, SpaceType } from '../../game/types'
 import { grassTexture, labelTexture, spriteTexture, woodTexture } from './textures'
@@ -93,6 +95,7 @@ export function Board3D({ state, chooseFork, models = {} }: BoardProps) {
       <ShopStand />
       <EventTrees goodUrl={models.TREE_GOOD ?? null} badUrl={models.TREE_BAD ?? null} />
       <DecorTrees />
+      <BoardDecor />
       <Signposts signposts={state.signposts} />
     </group>
   )
@@ -789,6 +792,31 @@ function DebugSpaceTip({ id, cursed }: { id: string; cursed?: boolean }) {
           )}
         </div>
       </Html>
+    </group>
+  )
+}
+
+// ---------- Décor libre posé via l'éditeur de l'Atelier ----------
+
+function BoardDecor() {
+  const def = getActiveBoardDef()
+  const items = def.decor ?? []
+  if (items.length === 0) return null
+  return (
+    <group>
+      {items.map((d) => (
+        <group
+          key={d.id}
+          position={[d.x * def.scale, 0, d.y * def.scale]}
+          rotation-y={(d.rotY * Math.PI) / 180}
+        >
+          <ModelErrorBoundary fallback={null}>
+            <Suspense fallback={null}>
+              <FittedModel url={assetUrl(d.file)} height={d.scale} />
+            </Suspense>
+          </ModelErrorBoundary>
+        </group>
+      ))}
     </group>
   )
 }

@@ -15,6 +15,7 @@ import {
   validateBoardDef,
   type BoardDef,
   type BoardSeed,
+  type DecorItem,
 } from '../../game/board'
 import { readCustomBoard, writeCustomBoard } from '../../game/customBoard'
 import { assetUrl } from '../../game/assets'
@@ -44,7 +45,7 @@ const EVENT_LABELS: Record<BoardEventKind, string> = {
   PIT: '🕳️ Le trou',
 }
 
-type Tool = 'select' | 'add' | 'link' | 'delete'
+type Tool = 'select' | 'add' | 'link' | 'decor' | 'delete'
 
 /** L'image source fait 599×423 px, tracée à l'origine en px/28 centré (300,211). */
 const IMG = { x: -300 / 28, y: -211 / 28, w: 599 / 28, h: 423 / 28 }
@@ -71,6 +72,9 @@ export function MapEditor() {
   const [paletteType, setPaletteType] = useState<SpaceType>('BLUE')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [linkSource, setLinkSource] = useState<string | null>(null)
+  const [selectedDecorId, setSelectedDecorId] = useState<string | null>(null)
+  const [decorBank, setDecorBank] = useState<{ name: string; file: string }[]>([])
+  const [decorFile, setDecorFile] = useState<string | null>(null)
   const [vb, setVb] = useState({ x: -12, y: -9.2, w: 24, h: 18.4 })
   const [img, setImg] = useState({ visible: true, opacity: 0.55, scale: 1, dx: 0, dy: 0 })
   const [applied, setApplied] = useState<string | null>(null)
@@ -79,10 +83,28 @@ export function MapEditor() {
   const histRef = useRef<BoardDef[]>([])
   const dragRef = useRef<
     | { kind: 'space'; id: string }
+    | { kind: 'decor'; id: string }
     | { kind: 'pan'; startVb: typeof vb; startX: number; startY: number }
     | null
   >(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Banque de modèles (chemins BRUTS du manifest : les maps exportées
+  // restent portables, assetUrl n'est appliqué qu'au rendu 3D)
+  useEffect(() => {
+    fetch(assetUrl('/models/manifest.json'))
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: unknown) => {
+        if (!Array.isArray(data)) return
+        const entries = data.filter(
+          (e): e is { name: string; file: string } =>
+            Boolean(e && typeof e === 'object' && 'name' in e && 'file' in e),
+        )
+        setDecorBank(entries)
+        setDecorFile((cur) => cur ?? entries[0]?.file ?? null)
+      })
+      .catch(() => {})
+  }, [])
 
   const byId = useMemo(() => new Map(def.seeds.map((s) => [s.id, s])), [def])
   const selected = selectedId ? (byId.get(selectedId) ?? null) : null
@@ -157,6 +179,36 @@ export function MapEditor() {
     if (linkSource === id) setLinkSource(null)
   }
 
+  const addDecor = (x: number, y: number) => {
+    if (!decorFile) return
+    apply((d) => {
+      let n = 1
+      while ((d.decor ?? []).some((it) => it.id === `d${String(n).padStart(2, '0')}`)) n += 1
+      d.decor = [
+        ...(d.decor ?? []),
+        { id: `d${String(n).padStart(2, '0')}`, file: decorFile, x, y, scale: 1.4, rotY: 0 },
+      ]
+    })
+  }
+
+  const deleteDecor = (id: string) => {
+    apply((d) => {
+      d.decor = (d.decor ?? []).filter((it) => it.id !== id)
+    })
+    if (selectedDecorId === id) setSelectedDecorId(null)
+  }
+
+  const patchDecor = (id: string, patch: Partial<DecorItem>, snapshot = true) => {
+    apply((d) => {
+      const it = (d.decor ?? []).find((x) => x.id === id)
+      if (it) Object.assign(it, patch)
+    }, snapshot)
+  }
+
+  const selectedDecor = selectedDecorId
+    ? (def.decor ?? []).find((it) => it.id === selectedDecorId) ?? null
+    : null
+
   /** none → a→b → a↔b → none */
   const cycleEdge = (aId: string, bId: string) => {
     apply((d) => {
@@ -198,8 +250,13 @@ export function MapEditor() {
     if (tool === 'add') {
       const p = toPoint(e)
       addSpace(p.x, p.y)
+    } else if (tool === 'decor') {
+      const p = toPoint(e)
+      setSelectedDecorId(null)
+      addDecor(p.x, p.y)
     } else if (tool === 'select') {
       setSelectedId(null)
+      setSelectedDecorId(null)
       dragRef.current = { kind: 'pan', startVb: vb, startX: e.clientX, startY: e.clientY }
     } else if (tool === 'link') {
       setLinkSource(null)
@@ -221,6 +278,9 @@ export function MapEditor() {
         },
         false, // l'historique a été poussé au début du drag
       )
+    } else if (drag.kind === 'decor') {
+      const p = toPoint(e)
+      patchDecor(drag.id, { x: p.x, y: p.y }, false)
     } else {
       const svg = svgRef.current
       if (!svg) return
@@ -408,6 +468,45 @@ export function MapEditor() {
             )
           })}
 
+          {/* décor 3D posé librement (losanges verts) */}
+          {(def.decor ?? []).map((it) => {
+            const isSel = it.id === selectedDecorId
+            return (
+              <g
+                key={it.id}
+                transform={`translate(${it.x} ${it.y})`}
+                opacity={tool === 'decor' || tool === 'delete' ? 1 : 0.55}
+                className={tool === 'decor' || tool === 'delete' ? 'cursor-pointer' : ''}
+                onPointerDown={(e) => {
+                  if (tool === 'delete') {
+                    e.stopPropagation()
+                    deleteDecor(it.id)
+                    return
+                  }
+                  if (tool !== 'decor') return
+                  e.stopPropagation()
+                  setSelectedDecorId(it.id)
+                  pushHist(def)
+                  dragRef.current = { kind: 'decor', id: it.id }
+                }}
+              >
+                <rect
+                  x={-0.22}
+                  y={-0.22}
+                  width={0.44}
+                  height={0.44}
+                  transform="rotate(45)"
+                  fill="#86efac"
+                  stroke={isSel ? '#ffffff' : '#14532d'}
+                  strokeWidth={isSel ? 0.08 : 0.04}
+                />
+                <text y={0.12} textAnchor="middle" fontSize={0.3} style={{ pointerEvents: 'none' }}>
+                  🌲
+                </text>
+              </g>
+            )
+          })}
+
           {/* cases */}
           {def.seeds.map((s) => {
             const isSel = s.id === selectedId
@@ -493,12 +592,13 @@ export function MapEditor() {
         </div>
 
         {/* Outils */}
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-5 gap-1.5">
           {(
             [
               ['select', '🖐️', 'Sélection / déplacer'],
               ['add', '➕', 'Ajouter une case'],
               ['link', '🔗', 'Lier (clic A puis B : sens unique → double → rien)'],
+              ['decor', '🌳', 'Poser du décor 3D (banque de modèles)'],
               ['delete', '🗑️', 'Supprimer'],
             ] as [Tool, string, string][]
           ).map(([t, icon, tip]) => (
@@ -543,6 +643,77 @@ export function MapEditor() {
               <span className="text-gold-300 block">Source : {linkSource}</span>
             )}
           </p>
+        )}
+
+        {/* Décor 3D (banque KayKit & co) */}
+        {tool === 'decor' && (
+          <div className="bg-night-800/60 flex flex-col gap-2 rounded-xl p-2.5">
+            <p className="text-cream/50 text-[11px] font-extrabold uppercase">
+              Décor à poser (clic sur la map)
+            </p>
+            {decorBank.length === 0 ? (
+              <p className="text-cream/60 text-xs font-bold">
+                Banque vide : liste tes .glb dans public/models/manifest.json (les 47 modèles
+                KayKit convertis y sont déjà).
+              </p>
+            ) : (
+              <select
+                value={decorFile ?? ''}
+                onChange={(e) => setDecorFile(e.target.value)}
+                className="bg-night-900 rounded-lg px-2 py-1.5 text-sm font-bold outline-none"
+              >
+                {decorBank.map((b) => (
+                  <option key={b.file} value={b.file}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {selectedDecor && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-gold-300 text-sm font-extrabold">
+                  {decorBank.find((b) => b.file === selectedDecor.file)?.name ?? selectedDecor.file}{' '}
+                  <span className="text-cream/45 font-bold">({selectedDecor.id})</span>
+                </p>
+                <label className="flex items-center gap-2 text-xs font-bold">
+                  <span className="w-16">Taille</span>
+                  <input
+                    type="range"
+                    min={0.3}
+                    max={6}
+                    step={0.1}
+                    value={selectedDecor.scale}
+                    onChange={(e) =>
+                      patchDecor(selectedDecor.id, { scale: Number(e.target.value) }, false)
+                    }
+                    className="flex-1"
+                  />
+                  <span className="w-9 text-right">{selectedDecor.scale.toFixed(1)}</span>
+                </label>
+                <label className="flex items-center gap-2 text-xs font-bold">
+                  <span className="w-16">Rotation</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={360}
+                    step={5}
+                    value={selectedDecor.rotY}
+                    onChange={(e) =>
+                      patchDecor(selectedDecor.id, { rotY: Number(e.target.value) }, false)
+                    }
+                    className="flex-1"
+                  />
+                  <span className="w-9 text-right">{selectedDecor.rotY}°</span>
+                </label>
+                <button
+                  onClick={() => deleteDecor(selectedDecor.id)}
+                  className="rounded-lg bg-red-900/50 px-3 py-1.5 text-sm font-extrabold hover:bg-red-900/70"
+                >
+                  🗑️ Supprimer ce décor
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Édition de la case sélectionnée */}
