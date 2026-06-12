@@ -1267,10 +1267,15 @@ describe('Banque Koopa, cases vides, portail, inversion', () => {
     expect(s.pending?.kind).toBe('GATE_PROMPT')
     const cost = s.pending?.kind === 'GATE_PROMPT' ? s.pending.cost : {}
 
-    // refus → on revient au choix (l'autre branche existe)
-    const refused = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'GATE', pay: false } })
-    expect(refused.phase).toBe('FORK_CHOICE')
+    // refus → on continue DE FORCE par l'autre chemin (o04), sans payer
+    let refused = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'GATE', pay: false } })
     expect(refused.players[0].coins).toBe(60)
+    expect(refused.pending?.kind).toBe('POPUP')
+    expect(refused.movement?.hopTo).toBe('o04')
+    refused = gameReducer(refused, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
+    expect(refused.phase).toBe('MOVING')
+    refused = gameReducer(refused, { type: 'STEP_DONE' })
+    expect(refused.players[0].currentSpaceId).toBe('o04')
 
     // paiement → débit, FX, confirmation, puis le saut reprend vers q01
     s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'GATE', pay: true } })
