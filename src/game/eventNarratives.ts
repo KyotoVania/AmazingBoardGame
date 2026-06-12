@@ -369,6 +369,34 @@ export const NARRATIVES = {
     `Un Peepa s'accroche à {target} sur ordre de {name} ! Taxe fantôme : 1 pièce la case. Sans reçu.`,
   ],
 
+  /** Duel gagné par l'initiateur. Vars : {name}, {target}, {myRoll}, {theirRoll}, {prize} */
+  DUEL_WIN: [
+    `🥊 {name} ({myRoll}) DÉMONTE {target} ({theirRoll}) et rafle {prize} ! {target} boit sa honte.`,
+    `DUEL ! {name} sort un {myRoll} contre le pauvre {theirRoll} de {target}. Butin : {prize}. Et une gorgée pour le perdant.`,
+    `{name} provoque {target} en duel et gagne {myRoll}-{theirRoll} ! {prize} change de mains. La justice du plus fort.`,
+  ],
+
+  /** Duel PERDU par l'initiateur. Vars : {name}, {target}, {myRoll}, {theirRoll}, {prize} */
+  DUEL_LOSE: [
+    `🥊 RETOURNEMENT ! {name} ({myRoll}) se fait corriger par {target} ({theirRoll}) et perd {prize} ! Provoquer, c'était une idée…`,
+    `{name} lance un duel et le PERD {myRoll}-{theirRoll} ! {target} repart avec {prize}. Bois ta défaite.`,
+    `L'arroseur arrosé : {target} ({theirRoll}) écrase {name} ({myRoll}) et empoche {prize} ! Magnifique karma.`,
+  ],
+
+  /** Double Carte armée. Vars : {name} */
+  ITEM_DOUBLE_CARD: [
+    `🎴 {name} arme la Double Carte ! Prochaine visite chez Toadette : DEUX Étoiles d'un coup (si t'as les fonds, gros).`,
+    `{name} prépare le braquage : la Double Carte est prête. Toadette va faire une syncope.`,
+    `Double Carte activée pour {name} ! Économise, c'est le moment d'être radin.`,
+  ],
+
+  /** Achat DOUBLE d'Étoiles. Vars : {name}, {cost} */
+  STAR_DOUBLE: [
+    `🎴⭐⭐ {name} CLAQUE {cost} pièces et repart avec DEUX ÉTOILES ! Toadette appelle la sécurité.`,
+    `DOUBLE ÉTOILE pour {name} ! {cost} pièces envolées, deux étoiles gagnées. Le capitalisme à son apogée.`,
+    `{name} dévalise le stand : 2 Étoiles pour {cost} pièces ! Les autres peuvent pleurer en rythme.`,
+  ],
+
   /** Nouvel allié recruté. Vars : {name}, {ally} */
   ITEM_ALLY: [
     `🤝 {ally} rejoint l'équipe de {name} ! Un fan de plus dans ta secte, +1/+2 au dé.`,

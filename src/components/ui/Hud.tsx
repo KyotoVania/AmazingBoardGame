@@ -166,6 +166,11 @@ function PlayerCard({
               🥤 +1🪙/case
             </span>
           )}
+          {player.doubleCard && (
+            <span className="rounded bg-fuchsia-500/25 px-1.5 py-0.5 text-[10px] font-extrabold text-fuchsia-300">
+              🎴 2 Étoiles armé
+            </span>
+          )}
           {player.peepaBy && (
             <span className="rounded bg-sky-500/25 px-1.5 py-0.5 text-[10px] font-extrabold text-sky-300">
               👻 Peepa -1🪙/case

@@ -652,6 +652,57 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           popup(s, '🪈 Tuyau doré', pickNarrative('ITEM_GOLDEN_PIPE', { name: p.name }), 'GOOD')
           break
         }
+        case 'DUELING_GLOVE': {
+          // Duel de dés immédiat (adaptation du minijeu de duel SMP)
+          let myRoll = randInt(1, 6)
+          let theirRoll = randInt(1, 6)
+          for (let i = 0; i < 10 && myRoll === theirRoll; i++) {
+            myRoll = randInt(1, 6)
+            theirRoll = randInt(1, 6)
+          }
+          const iWin = myRoll > theirRoll
+          const winner = iWin ? p : target!
+          const loser = iWin ? target! : p
+          let prize: string
+          const loserAllies = loser.allies ?? []
+          if (loserAllies.length > 0 && (winner.allies ?? []).length < MAX_ALLIES) {
+            const idx = randInt(0, loserAllies.length - 1)
+            const [stolen] = loserAllies.splice(idx, 1)
+            if (!winner.allies) winner.allies = []
+            winner.allies.push(stolen)
+            prize = `l'allié ${CHARACTERS[stolen].emoji} ${CHARACTERS[stolen].name}`
+          } else {
+            const amount = Math.min(5, loser.coins)
+            loser.coins -= amount
+            winner.coins += amount
+            if (amount > 0) setFx(s, 'STEAL_COINS', loser, winner, amount)
+            prize = `${amount} pièces`
+          }
+          loser.sipsTaken += 1
+          log(
+            s,
+            `🥊 Duel : ${p.name} (${myRoll}) vs ${target!.name} (${theirRoll}) — ${winner.name} rafle ${prize}, ${loser.name} boit !`,
+            iWin ? 'GOOD' : 'BAD',
+          )
+          popup(
+            s,
+            '🥊 DUEL !',
+            pickNarrative(iWin ? 'DUEL_WIN' : 'DUEL_LOSE', {
+              name: p.name,
+              target: target!.name,
+              myRoll,
+              theirRoll,
+              prize,
+            }),
+            iWin ? 'GOOD' : 'BAD',
+          )
+          break
+        }
+        case 'DOUBLE_CARD': {
+          p.doubleCard = true
+          popup(s, '🎴 Double Carte', pickNarrative('ITEM_DOUBLE_CARD', { name: p.name }), 'GOOD')
+          break
+        }
         case 'GOLDEN_DRINK': {
           p.goldenDrink = true
           popup(s, '🥤 Boisson dorée', pickNarrative('ITEM_GOLDEN_DRINK', { name: p.name }), 'GOOD')
@@ -916,13 +967,30 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         }
         case 'STAR': {
           if (choice.buy && p.coins >= effectiveStarCost(s)) {
-            addCoins(p, -effectiveStarCost(s))
-            p.stars += 1
+            const cost = effectiveStarCost(s)
+            // Double Carte (SMP) : 2 Étoiles d'un coup si on peut payer le double
+            const doubled = !!p.doubleCard && p.coins >= cost * 2
+            addCoins(p, -(doubled ? cost * 2 : cost))
+            p.stars += doubled ? 2 : 1
+            if (doubled) p.doubleCard = false
             setFx(s, 'STAR_BUY', p, p)
             const others = STAR_SPOTS.filter((id) => id !== s.starSpaceId)
             s.starSpaceId = pick(others)
-            log(s, `⭐ ${p.name} achète une Étoile ! Toadette déménage…`, 'GOOD')
-            popup(s, '⭐ Étoile !', pickNarrative('STAR_BUY', { name: p.name, cost: effectiveStarCost(s) }), 'GOOD')
+            log(
+              s,
+              doubled
+                ? `🎴⭐⭐ ${p.name} dégaine la Double Carte : DEUX Étoiles d'un coup !`
+                : `⭐ ${p.name} achète une Étoile ! Toadette déménage…`,
+              'GOOD',
+            )
+            popup(
+              s,
+              doubled ? '🎴 DOUBLE ÉTOILE !' : '⭐ Étoile !',
+              doubled
+                ? pickNarrative('STAR_DOUBLE', { name: p.name, cost: cost * 2 })
+                : pickNarrative('STAR_BUY', { name: p.name, cost }),
+              'GOOD',
+            )
           } else {
             continueOrLand(s)
           }

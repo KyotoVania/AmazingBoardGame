@@ -901,6 +901,64 @@ describe('Boisson dorée & Cloche Peepa (items SMP)', () => {
   })
 })
 
+describe('Gant de duel & Double Carte (items SMP)', () => {
+  it('le duel transfère un butin et fait boire le perdant', () => {
+    let s = start()
+    s = reduce(
+      s,
+      { type: 'DEBUG_INJECT_ITEM', playerId: 'P1', itemId: 'DUELING_GLOVE' },
+      { type: 'USE_ITEM', itemId: 'DUELING_GLOVE', targetId: 'P2' },
+    )
+    const [p1, p2] = s.players
+    const totalCoins = p1.coins + p2.coins
+    expect(totalCoins).toBe(2 * START_COINS) // le butin circule, rien ne disparaît
+    expect(p1.sipsTaken + p2.sipsTaken).toBe(1) // le perdant boit
+    // l'un des deux a gagné 5 pièces sur l'autre
+    expect([p1.coins, p2.coins].sort((a, b) => a - b)).toEqual([START_COINS - 5, START_COINS + 5])
+  })
+
+  it('le duel vole un allié en priorité', () => {
+    let s = start()
+    // P2 a un allié
+    s = gameReducer(s, { type: 'DEBUG_SET_TURN', playerId: 'P2' })
+    s = reduce(
+      s,
+      { type: 'DEBUG_INJECT_ITEM', playerId: 'P2', itemId: 'ALLY_PHONE' },
+      { type: 'USE_ITEM', itemId: 'ALLY_PHONE' },
+      { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } },
+    )
+    s = gameReducer(s, { type: 'DEBUG_SET_TURN', playerId: 'P1' })
+    s = reduce(
+      s,
+      { type: 'DEBUG_INJECT_ITEM', playerId: 'P1', itemId: 'DUELING_GLOVE' },
+      { type: 'USE_ITEM', itemId: 'DUELING_GLOVE', targetId: 'P2' },
+    )
+    const [p1, p2] = s.players
+    // l'allié a changé de camp dans un sens ou dans l'autre, ou est resté chez le gagnant P2
+    expect((p1.allies?.length ?? 0) + (p2.allies?.length ?? 0)).toBe(1)
+    expect(p1.coins + p2.coins).toBe(2 * START_COINS)
+  })
+
+  it('la Double Carte donne 2 Étoiles pour le double du prix', () => {
+    let s = start()
+    s = reduce(
+      s,
+      { type: 'DEBUG_EDIT_STATS', playerId: 'P1', patch: { coins: 99 } },
+      { type: 'DEBUG_INJECT_ITEM', playerId: 'P1', itemId: 'DOUBLE_CARD' },
+      { type: 'USE_ITEM', itemId: 'DOUBLE_CARD' },
+      { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } },
+    )
+    expect(s.players[0].doubleCard).toBe(true)
+    // simule l'arrivée chez Toadette
+    s = { ...s, phase: 'PASS_EVENT', pending: { kind: 'STAR_PROMPT' } }
+    const cost = s.config.starCost
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'STAR', buy: true } })
+    expect(s.players[0].stars).toBe(2)
+    expect(s.players[0].coins).toBe(99 - cost * 2)
+    expect(s.players[0].doubleCard).toBe(false)
+  })
+})
+
 describe('Appel Chomp (signature Woody Woods)', () => {
   it('déplace l’Étoile sur un autre spot', () => {
     let s = start()

@@ -116,6 +116,8 @@ export type ItemId =
   | 'ALLY_PHONE'
   | 'GOLDEN_DRINK'
   | 'PEEPA_BELL'
+  | 'DUELING_GLOVE'
+  | 'DOUBLE_CARD'
 
 export interface ItemDef {
   id: ItemId
@@ -161,6 +163,8 @@ export interface Player {
   goldenDrink?: boolean
   /** Un Peepa le suit (SMP) : 1 pièce volée par case, au profit de ce joueur. */
   peepaBy?: PlayerId | null
+  /** Double Carte (SMP) : la prochaine visite chez Toadette donne 2 Étoiles. */
+  doubleCard?: boolean
   /** Coincé dans le trou : il faut un lancer suffisant pour sortir. */
   trapped: boolean
   /**
