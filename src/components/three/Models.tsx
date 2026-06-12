@@ -18,6 +18,7 @@ import {
   type ReactNode,
 } from 'react'
 import * as THREE from 'three'
+import { assetUrl } from '../../game/assets'
 import type { PlayerId } from '../../game/types'
 
 /** Emplacements pouvant recevoir un modèle custom. */
@@ -44,15 +45,17 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
 
   // Banque de modèles : manifest optionnel, échec silencieux.
   useEffect(() => {
-    fetch('/models/manifest.json')
+    fetch(assetUrl('/models/manifest.json'))
       .then((r) => (r.ok ? r.json() : []))
       .then((list: unknown) => {
         if (Array.isArray(list)) {
           setBank(
-            list.filter(
-              (e): e is ModelBankEntry =>
-                !!e && typeof e.name === 'string' && typeof e.file === 'string',
-            ),
+            list
+              .filter(
+                (e): e is ModelBankEntry =>
+                  !!e && typeof e.name === 'string' && typeof e.file === 'string',
+              )
+              .map((e) => ({ ...e, file: assetUrl(e.file) })),
           )
         }
       })

@@ -9,6 +9,7 @@
 
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
+import { assetUrl } from '../../game/assets'
 import { pickNarrative } from '../../game/eventNarratives'
 import { useGame } from '../../game/useGameState'
 
@@ -30,14 +31,14 @@ export function CursedOverlay() {
 
   // Banque d'images cursed (manifest optionnel, échec silencieux)
   useEffect(() => {
-    fetch('/images/cursed/manifest.json')
+    fetch(assetUrl('/images/cursed/manifest.json'))
       .then((r) => (r.ok ? r.json() : []))
       .then((list: unknown) => {
         if (Array.isArray(list)) {
           setBank(
             list
               .filter((f): f is string => typeof f === 'string')
-              .map((f) => (f.startsWith('/') ? f : `/images/cursed/${f}`)),
+              .map((f) => assetUrl(f.startsWith('/') ? f : `/images/cursed/${f}`)),
           )
         }
       })

@@ -7,7 +7,17 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
-const EXE = `${process.env.HOME}/.cache/ms-playwright/chromium-1217/chrome-linux64/chrome`
+// Chemin du chromium : var d'env > détection playwright > rien (erreur claire).
+// `npx playwright install chromium` le met en place sur n'importe quel OS.
+const EXE =
+  process.env.CHROMIUM_PATH ??
+  (() => {
+    try {
+      return chromium.executablePath()
+    } catch {
+      return undefined
+    }
+  })()
 const PORT = 4191
 
 const server = spawn(
@@ -21,7 +31,7 @@ let browser
 try {
   await new Promise((r) => setTimeout(r, 2200))
   browser = await chromium.launch({
-    executablePath: EXE,
+    ...(EXE ? { executablePath: EXE } : {}),
     headless: true,
     args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--no-sandbox'],
   })
