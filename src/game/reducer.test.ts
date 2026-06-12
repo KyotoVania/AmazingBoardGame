@@ -237,8 +237,9 @@ describe('embranchements : panneaux et forks libres', () => {
     const before = s
     s = gameReducer(s, { type: 'CHOOSE_FORK', nextSpaceId: 'zzz' })
     expect(s).toBe(before)
-    s = reduce(s, { type: 'CHOOSE_FORK', nextSpaceId: freeFork.nextSpaces[1] }, { type: 'STEP_DONE' })
-    expect(s.players[0].currentSpaceId).toBe(freeFork.nextSpaces[1])
+    // (nextSpaces[1] = q01 est gardée par un portail : on teste la branche libre)
+    s = reduce(s, { type: 'CHOOSE_FORK', nextSpaceId: freeFork.nextSpaces[0] }, { type: 'STEP_DONE' })
+    expect(s.players[0].currentSpaceId).toBe(freeFork.nextSpaces[0])
   })
 
   it('atterrir sur la case event d’un panneau le fait pivoter', () => {
@@ -885,10 +886,11 @@ describe('Boisson dorée & Cloche Peepa (items SMP)', () => {
     const p1Before = s.players[0].coins
     const p2Before = s.players[1].coins
     s = walk(rollFrom({ ...s }, 'o04', 2))
-    // P2 (joueur courant) avance de 2 depuis o01 → atterrit sur o03 (bleue : +3)
-    // Peepa : -2 en chemin → net +1 pour P2, +2 pour P1 le sonneur
-    expect(s.players[1].coins).toBe(p2Before - 2 + 3)
-    expect(s.players[0].coins).toBe(p1Before + 2)
+    // P2 (joueur courant) avance de 2 depuis o01 : o02, o03 (case vide,
+    // gratuite mais parcourue), o04 → atterrit sur o04 (bleue : +3).
+    // Peepa : -3 en chemin (3 cases) → net 0 pour P2, +3 pour P1 le sonneur
+    expect(s.players[1].coins).toBe(p2Before - 3 + 3)
+    expect(s.players[0].coins).toBe(p1Before + 3)
   })
 
   it('la Boisson dorée est bloquée quand un Peepa te colle (doc SMP)', () => {
@@ -1194,5 +1196,117 @@ describe('fin de tour', () => {
     expect(s.itemUsedThisTurn).toBe(false)
     expect(s.rollBonus).toBe(0)
     expect(s.phase).toBe('TURN_START')
+  })
+})
+
+describe('Banque Koopa, cases vides, portail, inversion', () => {
+  it('la traversée d’une case vide ne consomme aucun pas', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    // o02 → o03 (case vide + fork libre) : le pas n'est PAS consommé
+    s = reduce(rollFrom(s, 'o02', 1), { type: 'STEP_DONE' })
+    expect(s.players[0].currentSpaceId).toBe('o03')
+    expect(s.movement?.remaining).toBe(1)
+    expect(s.phase).toBe('FORK_CHOICE')
+    s = reduce(s, { type: 'CHOOSE_FORK', nextSpaceId: 'o04' }, { type: 'STEP_DONE' })
+    // 1 seul pas a franchi 2 cases : on atterrit derrière la case vide
+    expect(s.players[0].currentSpaceId).toBe('o04')
+    expect(s.phase).toBe('SPACE_ACTION')
+  })
+
+  it('la Banque Koopa encaisse au passage (5, ou tout ce qui reste)', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    // passage : m03 → m04 (banque) → m05
+    s = walk(rollFrom(s, 'm03', 2))
+    expect(s.phase).toBe('PASS_EVENT')
+    expect(s.players[0].coins).toBe(START_COINS - 5)
+    expect(s.bankPot).toBe(5)
+    s = walk(gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } }))
+    expect(s.players[0].currentSpaceId).toBe('m05')
+
+    // joueur presque fauché : il donne tout ce qu'il lui reste
+    s = reduce(
+      s,
+      { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } },
+      { type: 'END_TURN' },
+      { type: 'DEBUG_SET_TURN', playerId: 'P2' },
+      { type: 'DEBUG_EDIT_STATS', playerId: 'P2', patch: { coins: 3 } },
+      { type: 'DEBUG_TELEPORT', playerId: 'P2', spaceId: 'm03' },
+      { type: 'DEBUG_FORCE_ROLL', value: 2 },
+      { type: 'ROLL_DICE', blockId: 'NORMAL' },
+      { type: 'DICE_LANDED' },
+    )
+    s = walk(s)
+    expect(s.players[1].coins).toBe(0)
+    expect(s.bankPot).toBe(8)
+  })
+
+  it('s’arrêter PILE sur la banque rafle toute la cagnotte', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02', bankPot: 12 }
+    s = walk(rollFrom(s, 'm03', 1))
+    expect(s.players[0].currentSpaceId).toBe('m04')
+    expect(s.players[0].coins).toBe(START_COINS + 12)
+    expect(s.bankPot).toBe(0)
+    expect(s.fx?.kind).toBe('STEAL_COINS')
+    expect(s.fx?.amount).toBe(12)
+  })
+
+  it('portail : refuser détourne, payer ouvre et le saut reprend', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'm02' }
+    s = gameReducer(s, {
+      type: 'DEBUG_EDIT_STATS',
+      playerId: 'P1',
+      patch: { coins: 60, stars: 2 },
+    })
+    s = reduce(rollFrom(s, 'o02', 1), { type: 'STEP_DONE' })
+    expect(s.phase).toBe('FORK_CHOICE')
+    s = gameReducer(s, { type: 'CHOOSE_FORK', nextSpaceId: 'q01' })
+    expect(s.pending?.kind).toBe('GATE_PROMPT')
+    const cost = s.pending?.kind === 'GATE_PROMPT' ? s.pending.cost : {}
+
+    // refus → on revient au choix (l'autre branche existe)
+    const refused = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'GATE', pay: false } })
+    expect(refused.phase).toBe('FORK_CHOICE')
+    expect(refused.players[0].coins).toBe(60)
+
+    // paiement → débit, FX, confirmation, puis le saut reprend vers q01
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'GATE', pay: true } })
+    if (cost.coins) expect(s.players[0].coins).toBe(60 - cost.coins)
+    if (cost.stars) expect(s.players[0].stars).toBe(2 - cost.stars)
+    expect(s.fx).not.toBeNull()
+    expect(s.pending?.kind).toBe('POPUP')
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
+    expect(s.phase).toBe('MOVING')
+    expect(s.movement?.hopTo).toBe('q01')
+    s = gameReducer(s, { type: 'STEP_DONE' })
+    expect(s.players[0].currentSpaceId).toBe('q01')
+  })
+
+  it('la case ⇄ inverse le sens, et on remonte ensuite le graphe', () => {
+    let s = start()
+    s = { ...s, starSpaceId: 'q02' }
+    s = walk(rollFrom(s, 'c04', 1))
+    expect(s.players[0].currentSpaceId).toBe('c05')
+    expect(s.players[0].reversed).toBe(true)
+    s = gameReducer(s, { type: 'RESOLVE_PENDING', choice: { kind: 'DISMISS' } })
+    expect(s.phase).toBe('TURN_END')
+
+    s = reduce(
+      s,
+      { type: 'DEBUG_SET_TURN', playerId: 'P1' },
+      { type: 'DEBUG_FORCE_ROLL', value: 2 },
+      { type: 'ROLL_DICE', blockId: 'NORMAL' },
+      { type: 'DICE_LANDED' },
+    )
+    // PREV[c05] = c04 (sens normal) + c06 (tronçon deux-sens) → choix libre
+    expect(s.phase).toBe('FORK_CHOICE')
+    s = reduce(s, { type: 'CHOOSE_FORK', nextSpaceId: 'c04' }, { type: 'STEP_DONE' })
+    expect(s.players[0].currentSpaceId).toBe('c04')
+    s = walk(s)
+    // il continue à remonter : c04 → c03
+    expect(s.players[0].currentSpaceId).toBe('c03')
   })
 })

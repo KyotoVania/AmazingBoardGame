@@ -8,9 +8,10 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
 import { BOARD, getSpace } from '../../game/board'
 import { CHARACTERS, DICE_BLOCKS, ITEMS } from '../../game/constants'
-import { effectiveSpaceType, getCurrentPlayer } from '../../game/reducer'
+import { effectiveSpaceType, getCurrentPlayer, movementCandidates } from '../../game/reducer'
 import type { DiceBlockId, ItemId, Player } from '../../game/types'
 import { useGame } from '../../game/useGameState'
+import { getCameraMode, toggleCameraMode } from '../three/cameraMode'
 import { SPACE_TYPE_LABELS, arrowFor } from './labels'
 
 export function ActionBar() {
@@ -71,6 +72,7 @@ function PreRollBar({ player }: { player: Player }) {
   const { state, rollDice } = useGame()
   const [selectedDice, setSelectedDice] = useState<DiceBlockId>('NORMAL')
   const [itemsOpen, setItemsOpen] = useState(false)
+  const [overview, setOverview] = useState(() => getCameraMode() === 'overview')
   const charDice = DICE_BLOCKS[player.character]
   const reward = player.rewardDice
   const faces = DICE_BLOCKS[selectedDice].faces
@@ -86,14 +88,23 @@ function PreRollBar({ player }: { player: Player }) {
             1. Utilise un item (optionnel) · 2. Choisis ton dé · 3. LANCE !
           </p>
         </div>
-        <button
-          onClick={() => setItemsOpen(true)}
-          disabled={player.inventory.length === 0 || state.itemUsedThisTurn}
-          className="bg-night-800 hover:bg-night-700 rounded-xl px-4 py-2.5 text-sm font-extrabold disabled:opacity-40"
-        >
-          🎒 Items ({player.inventory.length})
-          {state.itemUsedThisTurn && <span className="text-cream/50 block text-[10px]">déjà utilisé</span>}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setOverview(toggleCameraMode() === 'overview')}
+            className="bg-night-800 hover:bg-night-700 rounded-xl px-4 py-2.5 text-sm font-extrabold"
+            title={overview ? 'Revenir au suivi du pion' : 'Vue d’ensemble du plateau'}
+          >
+            {overview ? '🎯 Pion' : '🗺️ Map'}
+          </button>
+          <button
+            onClick={() => setItemsOpen(true)}
+            disabled={player.inventory.length === 0 || state.itemUsedThisTurn}
+            className="bg-night-800 hover:bg-night-700 rounded-xl px-4 py-2.5 text-sm font-extrabold disabled:opacity-40"
+          >
+            🎒 Items ({player.inventory.length})
+            {state.itemUsedThisTurn && <span className="text-cream/50 block text-[10px]">déjà utilisé</span>}
+          </button>
+        </div>
       </div>
 
       {reward && (
@@ -285,7 +296,11 @@ function ForkBar({ player }: { player: Player }) {
   const { state, chooseFork } = useGame()
   const space = getSpace(player.currentSpaceId)
   const cameFrom = state.movement?.cameFrom ?? null
-  const options = space.nextSpaces.filter((id) => id !== cameFrom)
+  // candidats au sens de déplacement EFFECTIF (joueur inversé ⇄ compris)
+  const candidates = state.movement
+    ? movementCandidates(player, state.movement)
+    : space.nextSpaces
+  const options = candidates.filter((id) => id !== cameFrom)
   return (
     <BarShell>
       <p className="text-center text-lg font-extrabold">

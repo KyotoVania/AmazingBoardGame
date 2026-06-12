@@ -11,6 +11,9 @@ export const SPACE_TYPE_LABELS: Record<SpaceType, string> = {
   BAD_LUCK: 'Case Poisse',
   VS: 'Case VS',
   ALLY: 'Case Alliée',
+  BANK: 'Banque Koopa',
+  REVERSE: 'Inversion ⇄',
+  WAYPOINT: 'Case vide (passage libre)',
   SIP_PLUS: 'Gorgées !',
   SIP_MINUS: 'Distribution',
 }

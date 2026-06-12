@@ -43,6 +43,14 @@ export function Hud() {
           <span className="text-cream/60 text-sm font-bold">
             Manche {state.round}/{state.maxRounds}
           </span>
+          {state.bankPot > 0 && (
+            <span
+              className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-extrabold text-emerald-300"
+              title="Cagnotte de la Banque Koopa — pour qui s'arrête PILE dessus"
+            >
+              🏦 {state.bankPot}
+            </span>
+          )}
           <span className="bg-gold-400/15 text-gold-300 rounded-full px-2.5 py-0.5 text-xs font-extrabold tracking-wide uppercase">
             {PHASE_LABELS[state.phase]}
           </span>
@@ -159,6 +167,11 @@ function PlayerCard({
           {player.poisoned && (
             <span className="rounded bg-purple-500/25 px-1.5 py-0.5 text-[10px] font-extrabold text-purple-300">
               ☠️ -2 au dé
+            </span>
+          )}
+          {player.reversed && (
+            <span className="rounded bg-rose-500/25 px-1.5 py-0.5 text-[10px] font-extrabold text-rose-300">
+              ⇄ contresens
             </span>
           )}
           {player.goldenDrink && (

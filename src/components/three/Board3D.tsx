@@ -12,6 +12,7 @@ import {
   BOARD,
   FORK_IDS,
   MOLE_SPACE_ID,
+  PREV,
   SHOP_SPACE_ID,
   SIGNPOST_FORK_IDS,
   SPACE_IDS,
@@ -23,7 +24,7 @@ import {
   spaceWorldPos,
 } from '../../game/board'
 import { assetUrl } from '../../game/assets'
-import { effectiveSpaceType, getCurrentPlayer } from '../../game/reducer'
+import { effectiveSpaceType, getCurrentPlayer, movementCandidates } from '../../game/reducer'
 import type { GameState, SpaceType } from '../../game/types'
 import { grassTexture, labelTexture, spriteTexture, woodTexture } from './textures'
 import { SPACE_TYPE_LABELS } from '../ui/labels'
@@ -39,6 +40,9 @@ const SPACE_COLORS: Record<SpaceType, string> = {
   BAD_LUCK: '#7c2d4e',
   VS: '#f59022',
   ALLY: '#e667a0',
+  BANK: '#43a047',
+  REVERSE: '#e11d48',
+  WAYPOINT: '#c9b380',
   SIP_PLUS: '#d97706',
   SIP_MINUS: '#0d9488',
 }
@@ -51,6 +55,8 @@ const SPACE_LABELS: Partial<Record<SpaceType, { text: string; color?: string }>>
   BAD_LUCK: { text: '💀' },
   VS: { text: 'VS' },
   ALLY: { text: '🤝' },
+  BANK: { text: '🏦' },
+  REVERSE: { text: '⇄' },
   SIP_PLUS: { text: '🍺' },
   SIP_MINUS: { text: '🍻' },
 }
@@ -67,10 +73,11 @@ export function Board3D({ state, chooseFork, models = {} }: BoardProps) {
   const debug = state.mode === 'DEBUG'
   const [hovered, setHovered] = useState<string | null>(null)
   const forkCandidates = useMemo(() => {
-    if (state.phase !== 'FORK_CHOICE' || !player) return []
-    const cameFrom = state.movement?.cameFrom ?? null
-    return getSpace(player.currentSpaceId).nextSpaces.filter((id) => id !== cameFrom)
-  }, [state.phase, state.movement?.cameFrom, player])
+    if (state.phase !== 'FORK_CHOICE' || !player || !state.movement) return []
+    const cameFrom = state.movement.cameFrom ?? null
+    // sens de déplacement EFFECTIF (joueur inversé ⇄ compris)
+    return movementCandidates(player, state.movement).filter((id) => id !== cameFrom)
+  }, [state.phase, state.movement, player])
 
   return (
     <group>
@@ -92,7 +99,9 @@ export function Board3D({ state, chooseFork, models = {} }: BoardProps) {
       <StarBeacon spaceId={state.starSpaceId} modelUrl={models.STAR ?? null} />
       <BooGhost modelUrl={models.BOO ?? null} />
       <MoleNpc modelUrl={models.MOLE ?? null} />
-      <ShopStand />
+      <ShopStand modelUrl={models.SHOP ?? null} />
+      <BankStand buildingUrl={models.BANK_BUILDING ?? null} npcUrl={models.BANK_NPC ?? null} />
+      <Gates3D />
       <EventTrees goodUrl={models.TREE_GOOD ?? null} badUrl={models.TREE_BAD ?? null} />
       <DecorTrees />
       <BoardDecor />
@@ -495,7 +504,7 @@ function EventTrees({ goodUrl, badUrl }: { goodUrl: string | null; badUrl: strin
 }
 
 /** L'étal de Flutter : auvent rayé + papillon qui voltige. */
-function ShopStand() {
+function ShopStand({ modelUrl }: { modelUrl: string | null }) {
   const ref = useRef<THREE.Sprite>(null)
   const tex = useMemo(() => spriteTexture('🦋'), [])
   useFrame(({ clock }) => {
@@ -505,6 +514,21 @@ function ShopStand() {
   })
   if (!SHOP_SPACE_ID) return null
   const space = getSpace(SHOP_SPACE_ID)
+  if (modelUrl) {
+    // Boutique custom (.glb) : le bâtiment est remplacé, Flutter voltige toujours
+    return (
+      <group position={[space.x + 1.0, 0, space.y + 0.4]}>
+        <ModelErrorBoundary fallback={null}>
+          <Suspense fallback={null}>
+            <FittedModel url={modelUrl} height={2.2} />
+          </Suspense>
+        </ModelErrorBoundary>
+        <sprite ref={ref} position={[0, 1.5, 0]} scale={[0.7, 0.7, 0.7]}>
+          <spriteMaterial map={tex} transparent depthWrite={false} />
+        </sprite>
+      </group>
+    )
+  }
   return (
     <group position={[space.x + 1.0, 0, space.y + 0.4]}>
       {/* comptoir */}
@@ -817,6 +841,104 @@ function BoardDecor() {
           </ModelErrorBoundary>
         </group>
       ))}
+    </group>
+  )
+}
+
+// ---------- La Banque Koopa : bâtiment + banquier (customisables) ----------
+
+function BankStand({ buildingUrl, npcUrl }: { buildingUrl: string | null; npcUrl: string | null }) {
+  const npcRef = useRef<THREE.Sprite>(null)
+  const koopaTex = useMemo(() => spriteTexture('🐢'), [])
+  const signTex = useMemo(() => labelTexture('🏦'), [])
+  useFrame(({ clock }) => {
+    if (npcRef.current) npcRef.current.position.y = 1.0 + Math.sin(clock.elapsedTime * 2.2) * 0.12
+  })
+  const bank = Object.values(BOARD).find((sp) => sp.type === 'BANK')
+  if (!bank) return null
+  return (
+    <group position={[bank.x + 0.95, 0, bank.y - 0.65]}>
+      {buildingUrl ? (
+        <ModelErrorBoundary fallback={null}>
+          <Suspense fallback={null}>
+            <FittedModel url={buildingUrl} height={2.2} />
+          </Suspense>
+        </ModelErrorBoundary>
+      ) : (
+        <group>
+          {/* coffre-fort de la banque */}
+          <mesh castShadow position-y={0.55}>
+            <boxGeometry args={[1.15, 1.1, 0.85]} />
+            <meshStandardMaterial color="#3f8f49" roughness={0.6} metalness={0.15} />
+          </mesh>
+          <mesh castShadow position-y={1.25} rotation-z={Math.PI / 4}>
+            <boxGeometry args={[0.85, 0.85, 0.95]} />
+            <meshStandardMaterial color="#2e6b36" roughness={0.7} />
+          </mesh>
+          {/* fente à pièces dorée */}
+          <mesh position={[0, 0.72, 0.44]}>
+            <boxGeometry args={[0.4, 0.08, 0.03]} />
+            <meshStandardMaterial color="#f6c244" metalness={0.6} roughness={0.3} />
+          </mesh>
+          {/* enseigne */}
+          <mesh position={[0, 1.05, 0.46]}>
+            <planeGeometry args={[0.5, 0.5]} />
+            <meshBasicMaterial map={signTex} transparent depthWrite={false} />
+          </mesh>
+        </group>
+      )}
+      {npcUrl ? (
+        <group position={[-0.85, 0, 0.45]}>
+          <ModelErrorBoundary fallback={null}>
+            <Suspense fallback={null}>
+              <FittedModel url={npcUrl} height={1.1} />
+            </Suspense>
+          </ModelErrorBoundary>
+        </group>
+      ) : (
+        <sprite ref={npcRef} position={[-0.85, 1.0, 0.45]} scale={[0.75, 0.75, 0.75]}>
+          <spriteMaterial map={koopaTex} transparent depthWrite={false} />
+        </sprite>
+      )}
+    </group>
+  )
+}
+
+// ---------- Portails à péage : grille dorée à l'entrée de la case ----------
+
+function Gates3D() {
+  const gates = Object.values(BOARD).filter((sp) => sp.gate)
+  if (gates.length === 0) return null
+  return (
+    <group>
+      {gates.map((sp) => {
+        const entryId = PREV[sp.id]?.[0]
+        const entry = entryId ? getSpace(entryId) : null
+        const midX = entry ? (sp.x + entry.x) / 2 : sp.x
+        const midZ = entry ? (sp.y + entry.y) / 2 : sp.y
+        const angle = entry ? -Math.atan2(sp.y - entry.y, sp.x - entry.x) : 0
+        return (
+          <group key={sp.id} position={[midX, 0, midZ]} rotation-y={angle}>
+            {[-0.5, 0.5].map((z) => (
+              <mesh key={z} castShadow position={[0, 0.65, z]}>
+                <cylinderGeometry args={[0.06, 0.07, 1.3, 10]} />
+                <meshStandardMaterial color="#d4af37" metalness={0.5} roughness={0.35} />
+              </mesh>
+            ))}
+            <mesh castShadow position-y={1.25}>
+              <boxGeometry args={[0.08, 0.08, 1.12]} />
+              <meshStandardMaterial color="#d4af37" metalness={0.5} roughness={0.35} />
+            </mesh>
+            {/* barreaux */}
+            {[-0.28, 0, 0.28].map((z) => (
+              <mesh key={z} position={[0, 0.62, z]}>
+                <cylinderGeometry args={[0.025, 0.025, 1.15, 6]} />
+                <meshStandardMaterial color="#b8962e" metalness={0.45} roughness={0.4} />
+              </mesh>
+            ))}
+          </group>
+        )
+      })}
     </group>
   )
 }

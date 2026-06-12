@@ -219,3 +219,53 @@ describe('plateau injectable (Atelier)', () => {
     }
   })
 })
+
+describe('nouvelles cases du plateau par défaut', () => {
+  it('banque, inversion, cases vides et portail sont en place', () => {
+    const types = Object.values(BOARD).map((s) => s.type)
+    expect(types.filter((t) => t === 'BANK')).toHaveLength(1)
+    expect(types.filter((t) => t === 'REVERSE')).toHaveLength(1)
+    expect(types.filter((t) => t === 'WAYPOINT')).toHaveLength(5)
+    expect(Object.values(BOARD).filter((s) => s.gate)).toHaveLength(1)
+    // les 5 forks de la map sont des cases vides (le bon setup des panneaux)
+    for (const id of SIGNPOST_FORK_IDS) expect(BOARD[id].type).toBe('WAYPOINT')
+  })
+
+  it('les cases vides ne comptent pas dans la distance à l’Étoile', () => {
+    // o02 → o04 traverse la case vide o03 : distance 1 et non 2
+    expect(board.distanceBetween('o02', 'o04')).toBe(1)
+  })
+
+  it('validateBoardDef signale une boucle orientée de cases vides', () => {
+    const seeds: BoardSeed[] = [
+      { id: 's0', type: 'START', x: 0, y: 0, next: ['w1'] },
+      { id: 'w1', type: 'WAYPOINT', x: 1, y: 0, next: ['w2'] },
+      { id: 'w2', type: 'WAYPOINT', x: 2, y: 0, next: ['w3'] },
+      { id: 'w3', type: 'WAYPOINT', x: 2.5, y: 1, next: ['w1', 's3'] },
+      { id: 's3', type: 'ITEM', x: 3, y: 0, next: ['s4'], starSpot: true },
+      { id: 's4', type: 'BLUE', x: 4, y: 0, next: ['s5'], starSpot: true },
+      { id: 's5', type: 'BLUE', x: 5, y: 0, next: ['s6'] },
+      { id: 's6', type: 'BLUE', x: 6, y: 0, next: ['s7'] },
+      { id: 's7', type: 'BLUE', x: 7, y: 0, next: ['s8'] },
+      { id: 's8', type: 'BLUE', x: 8, y: 0, next: ['s9'] },
+      { id: 's9', type: 'BLUE', x: 9, y: 0, next: ['s0'] },
+    ]
+    const def: BoardDef = { name: 'Loop', scale: 1, seeds, twoWayPairs: [] }
+    expect(
+      validateBoardDef(def).warnings.some((w) => w.includes('Boucle de cases vides')),
+    ).toBe(true)
+    // un simple tronçon deux-sens entre deux cases vides n'est PAS une boucle
+    // (le demi-tour immédiat est interdit par le moteur)
+    const okSeeds = structuredClone(seeds).filter((sd) => sd.id !== 'w3')
+    okSeeds.find((sd) => sd.id === 'w2')!.next = ['s3']
+    const okDef: BoardDef = {
+      name: 'TwoWay',
+      scale: 1,
+      seeds: okSeeds,
+      twoWayPairs: [['w1', 'w2']],
+    }
+    expect(
+      validateBoardDef(okDef).warnings.some((w) => w.includes('Boucle de cases vides')),
+    ).toBe(false)
+  })
+})

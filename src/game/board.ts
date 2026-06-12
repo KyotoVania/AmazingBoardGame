@@ -53,14 +53,14 @@ const SEEDS: BoardSeed[] = [
   { id: 'o01', type: 'START', x: 8.0, y: 6.3, next: ['o02'] },
   { id: 'o02', type: 'BLUE', x: 6.9, y: 6.5, next: ['o03'] },
   // Fork LIBRE : mini-boucle du départ (raccourci vers le spot étoile sud-est)
-  { id: 'o03', type: 'BLUE', x: 5.8, y: 6.6, next: ['o04', 'q01'], branchLabels: ['Grand tour du plateau', 'Mini-boucle (spot étoile)'] },
+  { id: 'o03', type: 'WAYPOINT', x: 5.8, y: 6.6, next: ['o04', 'q01'], branchLabels: ['Grand tour du plateau', 'Mini-boucle (spot étoile) 🚪'] },
   { id: 'o04', type: 'BLUE', x: 4.7, y: 6.6, next: ['o05'] },
   { id: 'o05', type: 'ITEM', x: 3.6, y: 6.5, next: ['o06'] },
   { id: 'o06', type: 'SIP_PLUS', x: 2.5, y: 6.4, next: ['o07'] },
   { id: 'o07', type: 'BLUE', x: 1.4, y: 6.4, next: ['o08'] },
   { id: 'o08', type: 'EVENT', event: 'SIGNPOST', x: 0.3, y: 6.4, next: ['o09'] },
   // Fork à PANNEAU n°1 : continuer à l'ouest ou monter au centre
-  { id: 'o09', type: 'BLUE', x: -0.8, y: 6.3, next: ['o10', 'c01'], branchLabels: ['Route de l’ouest (arbre généreux)', 'Vers le centre (LE TROU)'] },
+  { id: 'o09', type: 'WAYPOINT', x: -0.8, y: 6.3, next: ['o10', 'c01'], branchLabels: ['Route de l’ouest (arbre généreux)', 'Vers le centre (LE TROU)'] },
   { id: 'o10', type: 'RED', x: -1.9, y: 6.2, next: ['o11'] },
   { id: 'o11', type: 'BLUE', x: -3.0, y: 6.0, next: ['o12'] },
   { id: 'o12', type: 'BLUE', x: -4.1, y: 5.6, next: ['o13'], starSpot: true },
@@ -71,7 +71,7 @@ const SEEDS: BoardSeed[] = [
   { id: 'o17', type: 'RED', x: -7.2, y: 1.3, next: ['o18'] },
   { id: 'o18', type: 'EVENT', event: 'SIGNPOST', x: -7.4, y: 0.2, next: ['o19'] },
   // Fork à PANNEAU n°2 : continuer au nord ou bifurquer dans la bande centrale
-  { id: 'o19', type: 'BLUE', x: -7.4, y: -0.9, next: ['o20', 'm01'], branchLabels: ['Route du nord (arbre maudit)', 'Bande centrale'] },
+  { id: 'o19', type: 'WAYPOINT', x: -7.4, y: -0.9, next: ['o20', 'm01'], branchLabels: ['Route du nord (arbre maudit)', 'Bande centrale'] },
   { id: 'o20', type: 'ITEM', x: -7.2, y: -2.0, next: ['o21'] },
   { id: 'o21', type: 'LUCKY', x: -7.0, y: -3.0, next: ['o22'] },
   { id: 'o22', type: 'EVENT', event: 'TREE_BAD', x: -6.6, y: -4.0, next: ['o23'] },
@@ -86,7 +86,7 @@ const SEEDS: BoardSeed[] = [
   { id: 'o30', type: 'BLUE', x: 1.6, y: -6.2, next: ['o31'], hasBoo: true },
   { id: 'o31', type: 'EVENT', event: 'SIGNPOST', x: 2.7, y: -6.1, next: ['o32'] },
   // Fork à PANNEAU n°3 : continuer à l'est ou plonger vers la bande centrale
-  { id: 'o32', type: 'BLUE', x: 3.8, y: -6.0, next: ['o33', 'c11'], branchLabels: ['Route de l’est (spot étoile)', 'Plongée vers le centre'] },
+  { id: 'o32', type: 'WAYPOINT', x: 3.8, y: -6.0, next: ['o33', 'c11'], branchLabels: ['Route de l’est (spot étoile)', 'Plongée vers le centre'] },
   { id: 'o33', type: 'ITEM', x: 4.9, y: -5.8, next: ['o34'] },
   { id: 'o34', type: 'BLUE', x: 6.0, y: -5.6, next: ['o35'] },
   { id: 'o35', type: 'ALLY', x: 7.0, y: -5.2, next: ['o36'] },
@@ -107,13 +107,14 @@ const SEEDS: BoardSeed[] = [
   { id: 'm01', type: 'BLUE', x: -6.3, y: -1.0, next: ['m02'] },
   { id: 'm02', type: 'BLUE', x: -5.2, y: -1.0, next: ['m03'], starSpot: true },
   { id: 'm03', type: 'SIP_MINUS', x: -4.1, y: -1.0, next: ['m04'] },
-  { id: 'm04', type: 'BLUE', x: -3.0, y: -1.0, next: ['m05'] },
+  // Banque Koopa : péage de 5 au passage, jackpot de la cagnotte à l'arrêt pile
+  { id: 'm04', type: 'BANK', x: -3.0, y: -1.0, next: ['m05'] },
   { id: 'm05', type: 'BLUE', x: -1.9, y: -1.0, next: ['m06'] },
   { id: 'm06', type: 'VS', x: -0.8, y: -1.0, next: ['m07'] },
   { id: 'm07', type: 'BLUE', x: 0.3, y: -1.0, next: ['m08'] },
   { id: 'm08', type: 'BLUE', x: 1.4, y: -0.9, next: ['m09'] },
   // Fork LIBRE : raccourci par la boucle intérieure (gardé par LE MUR)
-  { id: 'm09', type: 'BLUE', x: 2.5, y: -0.9, next: ['m10', 'l01'], branchLabels: ['Route principale', 'Raccourci muré 🧱'] },
+  { id: 'm09', type: 'WAYPOINT', x: 2.5, y: -0.9, next: ['m10', 'l01'], branchLabels: ['Route principale', 'Raccourci muré 🧱'] },
   { id: 'm10', type: 'RED', x: 3.6, y: -0.8, next: ['m11'] },
   { id: 'm11', type: 'BLUE', x: 4.7, y: -0.7, next: ['m12'] },
   { id: 'm12', type: 'VS', x: 5.8, y: -0.6, next: ['m13'] },
@@ -126,7 +127,8 @@ const SEEDS: BoardSeed[] = [
   { id: 'c03', type: 'BLUE', x: -1.1, y: 3.0, next: ['c04'] },
   // LE TROU : il faut un lancer suffisant pour en sortir
   { id: 'c04', type: 'EVENT', event: 'PIT', x: -1.2, y: 1.9, next: ['c05'] },
-  { id: 'c05', type: 'BLUE', x: -1.3, y: 0.9, next: ['c06'] },
+  // Inversion ⇄ : qui tombe ici repart à contresens du plateau
+  { id: 'c05', type: 'REVERSE', x: -1.3, y: 0.9, next: ['c06'] },
   { id: 'c06', type: 'BLUE', x: -1.6, y: -0.1, next: ['m05'] },
 
   // ----- Connecteur centre (fork panneau n°3 → bande centrale) -----
@@ -148,7 +150,8 @@ const SEEDS: BoardSeed[] = [
   { id: 'l08', type: 'BLUE', x: 7.7, y: 4.6, next: ['o45'] },
 
   // ----- Mini-boucle du départ -----
-  { id: 'q01', type: 'ALLY', x: 5.5, y: 5.7, next: ['q02'] },
+  // Portail à péage à l'entrée de la mini-boucle (spot étoile express)
+  { id: 'q01', type: 'ALLY', x: 5.5, y: 5.7, next: ['q02'], gate: true },
   { id: 'q02', type: 'BLUE', x: 4.9, y: 4.8, next: ['l06'], starSpot: true },
 ]
 
@@ -390,6 +393,42 @@ export function validateBoardDef(def: BoardDef): BoardValidation {
     if (s.type === 'EVENT' && !s.event) warnings.push(`${s.id} est une case EVENT sans événement.`)
   }
 
+  // Boucle de cases vides : un déplacement gratuit n'y finirait jamais
+  // (cycle dans le sous-graphe WAYPOINT, demi-tour immédiat exclu).
+  const wpIds = new Set(def.seeds.filter((sd) => sd.type === 'WAYPOINT').map((sd) => sd.id))
+  if (wpIds.size > 0) {
+    const color = new Map<string, number>()
+    const dfs = (id: string, from: string | null): boolean => {
+      color.set(id, 1)
+      let skippedParent = false
+      for (const n of nexts.get(id) ?? []) {
+        if (!wpIds.has(n)) continue
+        if (n === from && !skippedParent) {
+          skippedParent = true
+          continue
+        }
+        const c = color.get(n) ?? 0
+        if (c === 1) return true
+        if (c === 0 && dfs(n, id)) return true
+      }
+      color.set(id, 2)
+      return false
+    }
+    for (const id of wpIds) {
+      if ((color.get(id) ?? 0) === 0 && dfs(id, null)) {
+        warnings.push(
+          'Boucle de cases vides détectée : les pions risquent d’y tourner (garde-fou moteur à 150 sauts).',
+        )
+        break
+      }
+    }
+  }
+  for (const sd of def.seeds) {
+    if (sd.gate && sd.type === 'START') warnings.push('Portail à péage sur la case Départ.')
+    if (sd.type === 'WAYPOINT' && sd.wall)
+      warnings.push(`${sd.id} : mur sur une case de passage libre (on ne peut pas s'y arrêter).`)
+  }
+
   if (def.seeds.filter((s) => s.hasMole).length > 1)
     warnings.push('Plusieurs Topi Taupe : seul le premier compte.')
   if (def.seeds.filter((s) => s.hasShop).length > 1)
@@ -409,23 +448,25 @@ export function validateBoardDef(def: BoardDef): BoardValidation {
  */
 export function distanceBetween(fromId: string, toId: string): number {
   if (fromId === toId) return 0
-  const seen = new Set<string>([fromId])
-  let frontier = [fromId]
-  let dist = 0
-  while (frontier.length > 0 && dist < 200) {
-    dist += 1
-    const next: string[] = []
-    for (const id of frontier) {
-      for (const n of BOARD[id]?.nextSpaces ?? []) {
-        if (seen.has(n)) continue
-        if (n === toId) return dist
-        seen.add(n)
-        next.push(n)
+  // BFS 0-1 : traverser une case vide (WAYPOINT) ne coûte AUCUN pas
+  const dist = new Map<string, number>([[fromId, 0]])
+  const deque: string[] = [fromId]
+  let guard = 0
+  while (deque.length > 0 && guard++ < 5000) {
+    const id = deque.shift()!
+    const d = dist.get(id)!
+    for (const n of BOARD[id]?.nextSpaces ?? []) {
+      const w = BOARD[n]?.type === 'WAYPOINT' ? 0 : 1
+      const nd = d + w
+      if (nd < (dist.get(n) ?? Infinity)) {
+        dist.set(n, nd)
+        if (w === 0) deque.unshift(n)
+        else deque.push(n)
       }
     }
-    frontier = next
   }
-  return -1
+  const d = dist.get(toId)
+  return d === undefined || d > 200 ? -1 : d
 }
 
 export function getSpace(id: string): BoardSpace {

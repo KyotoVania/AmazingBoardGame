@@ -22,7 +22,16 @@ import { assetUrl } from '../../game/assets'
 import type { PlayerId } from '../../game/types'
 
 /** Emplacements pouvant recevoir un modèle custom. */
-export type ModelSlot = PlayerId | 'STAR' | 'TREE_GOOD' | 'TREE_BAD' | 'MOLE' | 'BOO'
+export type ModelSlot =
+  | PlayerId
+  | 'STAR'
+  | 'TREE_GOOD'
+  | 'TREE_BAD'
+  | 'MOLE'
+  | 'BOO'
+  | 'SHOP'
+  | 'BANK_BUILDING'
+  | 'BANK_NPC'
 
 /** Une entrée de la banque de modèles (public/models/manifest.json). */
 export interface ModelBankEntry {

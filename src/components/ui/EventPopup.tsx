@@ -81,6 +81,8 @@ function speakerFor(pending: PendingAction): Speaker {
       return fromRegistry('KAMEK', 'BAD', 'La Roue de Kamek')
     case 'WALL_PROMPT':
       return { portrait: '🧱', imageUrl: null, name: 'LE MUR', tone: 'NEUTRAL' }
+    case 'GATE_PROMPT':
+      return { portrait: '🚪', imageUrl: null, name: 'Portail à péage', tone: 'NEUTRAL' }
     case 'SHOP_PROMPT':
       return fromRegistry('FLUTTER', 'GOOD', 'Boutique de Flutter')
   }
@@ -350,6 +352,38 @@ function PendingContent({ pending, player }: { pending: PendingAction; player: P
           </div>
         </>
       )
+
+    case 'GATE_PROMPT': {
+      const price = pending.cost.coins
+        ? `${pending.cost.coins} pièces 🪙`
+        : `${pending.cost.stars} Étoile ⭐`
+      const affordable =
+        (pending.cost.coins ?? 0) <= player.coins && (pending.cost.stars ?? 0) <= player.stars
+      return (
+        <>
+          <p className="text-cream/90 mt-1 text-lg font-bold">
+            Une grille massive te barre le passage. Le gardien réclame son dû :{' '}
+            <span className="text-gold-300">{price}</span>.
+            {!affordable && (
+              <span className="block text-red-300">…et tu n'as pas de quoi payer.</span>
+            )}
+          </p>
+          <div className="mt-3 flex items-center justify-end gap-3">
+            <button
+              onClick={() => resolvePending({ kind: 'GATE', pay: false })}
+              className="bg-night-800 hover:bg-night-700 text-cream/75 rounded-xl px-4 py-2.5 text-sm font-extrabold"
+            >
+              Hors de question
+            </button>
+            {affordable && (
+              <BigButton onClick={() => resolvePending({ kind: 'GATE', pay: true })}>
+                💰 PAYER {price}
+              </BigButton>
+            )}
+          </div>
+        </>
+      )
+    }
   }
 }
 

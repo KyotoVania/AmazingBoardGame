@@ -11,6 +11,7 @@ import type {
   CharacterId,
   DiceBlockDef,
   DiceBlockId,
+  GateCost,
   ItemDef,
   ItemId,
   LobbyPlayerConfig,
@@ -49,6 +50,12 @@ export const MOLE_COST_MAX = 10 // [ADAPTATION]
 // Événements spéciaux custom
 export const PIT_ESCAPE_MIN = 4 // [ADAPTATION] lancer minimum pour sortir du trou
 export const WALL_INITIAL_STRENGTH = 6 // demandé : commence à 6, -1 par échec
+
+// Banque Koopa (classique Mario Party)
+export const BANK_TOLL = 5 // demandé : 5 pièces au passage (ou tout ce qui reste)
+
+// Portails à péage : coût tiré au sort en arrivant devant [ADAPTATION]
+export const GATE_COSTS: GateCost[] = [{ coins: 30 }, { stars: 1 }]
 
 // Cases Chance / Poisse (wiki SMP : gagner/perdre items ou pièces)
 export const LUCKY_COINS = [5, 10] as const

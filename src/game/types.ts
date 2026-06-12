@@ -19,6 +19,9 @@ export type SpaceType =
   | 'BAD_LUCK'
   | 'VS'
   | 'ALLY'
+  | 'BANK'
+  | 'REVERSE'
+  | 'WAYPOINT'
   | 'SIP_PLUS'
   | 'SIP_MINUS'
 
@@ -41,6 +44,8 @@ export interface BoardSpace {
   hasMole?: boolean
   /** Un mur destructible barre l'entrée de cette case. */
   wall?: boolean
+  /** Un portail à péage barre l'entrée de cette case (coût aléatoire). */
+  gate?: boolean
   /** La boutique de Flutter est postée ici : achat proposé au passage. */
   hasShop?: boolean
   /** Emplacement candidat pour l'Étoile (points jaunes de la map). */
@@ -167,6 +172,8 @@ export interface Player {
   doubleCard?: boolean
   /** Coincé dans le trou : il faut un lancer suffisant pour sortir. */
   trapped: boolean
+  /** Case Inversion : le joueur parcourt le plateau à contresens. */
+  reversed?: boolean
   /**
    * Alliés (règle SMP) : chaque allié ajoute +1 ou +2 au lancer et suit
    * le pion en 3D. Optionnel pour la compat des saves.
@@ -255,6 +262,8 @@ export interface DiceRollState {
 export interface MovementState {
   /** Pas restants à parcourir. */
   remaining: number
+  /** Garde anti-boucle : nombre total de sauts effectués ce déplacement. */
+  hops?: number
   /** Total de pas du lancer (affichage N/total). */
   total: number
   /** Prochaine case vers laquelle le pion saute (résolue par le reducer). */
@@ -314,6 +323,13 @@ export type PendingAction =
   | { kind: 'BAD_LUCK_WHEEL'; options: BadLuckOutcome[]; resultIndex: number }
   | { kind: 'WALL_PROMPT'; spaceId: string; strength: number }
   | { kind: 'SHOP_PROMPT'; stock: ItemId[] }
+  | { kind: 'GATE_PROMPT'; targetId: string; cost: GateCost }
+
+/** Coût tiré au sort d'un portail à péage (pièces OU étoile). */
+export interface GateCost {
+  coins?: number
+  stars?: number
+}
 
 /** Réponses possibles à une PendingAction. */
 export type PendingChoice =
@@ -329,6 +345,7 @@ export type PendingChoice =
   | { kind: 'WALL_TRY' }
   | { kind: 'SHOP_BUY'; itemId: ItemId }
   | { kind: 'SHOP_LEAVE' }
+  | { kind: 'GATE'; pay: boolean }
 
 // ---------- Configuration runtime (Config Panel) ----------
 
@@ -397,6 +414,8 @@ export interface GameState {
   signposts: Record<string, number>
   /** Solidité restante des murs, par case (0 = cassé). */
   walls: Record<string, number>
+  /** Cagnotte commune des Banques Koopa (péages de passage). */
+  bankPot: number
   /** Un seul item utilisable avant le lancer. */
   itemUsedThisTurn: boolean
   /** Bonus de déplacement du tour (Champi +3 / Champi doré +5). */

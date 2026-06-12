@@ -29,6 +29,9 @@ const DECOR_SLOTS: { slot: ModelSlot; label: string }[] = [
   { slot: 'TREE_BAD', label: '🌳 Arbre maudit' },
   { slot: 'MOLE', label: '🦫 Topi Taupe' },
   { slot: 'BOO', label: '👻 Boo' },
+  { slot: 'SHOP', label: '🛒 Boutique de Flutter (bâtiment)' },
+  { slot: 'BANK_BUILDING', label: '🏦 Banque Koopa (bâtiment)' },
+  { slot: 'BANK_NPC', label: '🐢 Banquier Koopa (personnage)' },
 ]
 
 const PLAYER_SLOTS: { slot: ModelSlot; label: string }[] = [

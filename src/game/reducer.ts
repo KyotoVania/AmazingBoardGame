@@ -36,6 +36,8 @@ import {
   TREE_COIN_FRUIT,
   VS_SPLIT,
   VS_WAGERS,
+  BANK_TOLL,
+  GATE_COSTS,
   defaultGameConfig,
 } from './constants'
 import {
@@ -59,6 +61,7 @@ import type {
   GameAction,
   GameState,
   LogEntry,
+  MovementState,
   Player,
   PlayerId,
   PopupTone,
@@ -83,6 +86,7 @@ export function createInitialState(): GameState {
     cursedSpaceIds: [],
     signposts: {},
     walls: {},
+    bankPot: 0,
     itemUsedThisTurn: false,
     rollBonus: 0,
     dice: null,
@@ -274,6 +278,31 @@ function prepareRoll(s: GameState, blockId: DiceBlockId): void {
 }
 
 /**
+ * Candidats de déplacement effectifs : sens normal = nextSpaces, mais un
+ * joueur INVERSÉ (case ⇄) remonte le graphe, et le recul (arbre maudit)
+ * va à l'opposé du sens effectif du joueur.
+ */
+export function movementCandidates(p: Player, m: MovementState): string[] {
+  const goPrev = m.backward !== Boolean(p.reversed)
+  return goPrev ? PREV[p.currentSpaceId] : getSpace(p.currentSpaceId).nextSpaces
+}
+
+/**
+ * Arme le saut vers `target` — sauf si un PORTAIL À PÉAGE barre l'entrée :
+ * on ouvre alors le dialogue de péage avant de franchir.
+ */
+function armHop(s: GameState, m: MovementState, target: string): void {
+  if (!m.backward && getSpace(target).gate) {
+    s.phase = 'PASS_EVENT'
+    s.focusSpaceId = target
+    s.pending = { kind: 'GATE_PROMPT', targetId: target, cost: pick(GATE_COSTS) }
+    return
+  }
+  m.hopTo = target
+  s.phase = 'MOVING'
+}
+
+/**
  * Calcule le prochain saut. Aux forks à PANNEAU, la direction est
  * dictée (règle réelle de Woody Woods) ; aux forks libres, le joueur choisit.
  */
@@ -281,7 +310,8 @@ function advanceMovement(s: GameState): void {
   const p = current(s)
   const m = s.movement
   if (!m) return
-  const candidates = m.backward ? PREV[p.currentSpaceId] : getSpace(p.currentSpaceId).nextSpaces
+  const goPrev = m.backward !== Boolean(p.reversed)
+  const candidates = movementCandidates(p, m)
   if (candidates.length === 0) {
     landOnSpace(s)
     return
@@ -291,18 +321,17 @@ function advanceMovement(s: GameState): void {
     // la case d'où l'on vient est exclue des options.
     const options = candidates.filter((c) => c !== m.cameFrom)
     if (options.length <= 1) {
-      m.hopTo = options[0] ?? candidates[0]
-      s.phase = 'MOVING'
+      armHop(s, m, options[0] ?? candidates[0])
       return
     }
-    const dictated = s.signposts[p.currentSpaceId]
+    // les panneaux ne dictent que le sens NORMAL de circulation
+    const dictated = goPrev ? undefined : s.signposts[p.currentSpaceId]
     if (dictated !== undefined) {
       const target = candidates[dictated % candidates.length]
       // le panneau dicte, sauf s'il pointe pile d'où l'on vient
       if (options.includes(target)) {
-        m.hopTo = target
-        s.phase = 'MOVING'
         log(s, `🪧 Le panneau dirige ${p.name} !`, 'NEUTRAL')
+        armHop(s, m, target)
         return
       }
     }
@@ -310,8 +339,7 @@ function advanceMovement(s: GameState): void {
     s.phase = 'FORK_CHOICE'
     return
   }
-  m.hopTo = candidates.length > 1 ? pick(candidates) : candidates[0]
-  s.phase = 'MOVING'
+  armHop(s, m, candidates.length > 1 ? pick(candidates) : candidates[0])
 }
 
 /** Après un événement de passage : continuer la route ou atterrir. */
@@ -402,6 +430,49 @@ function landOnSpace(s: GameState): void {
     case 'ALLY':
       // Règle SMP : la roulette d'alliés (ici : tirage direct)
       gainAlly(s, p)
+      break
+    case 'BANK': {
+      if (s.bankPot > 0) {
+        const pot = s.bankPot
+        p.coins += pot
+        s.bankPot = 0
+        s.fx = {
+          id: s.logSeq++,
+          kind: 'STEAL_COINS',
+          amount: pot,
+          fromName: 'Banque Koopa',
+          toName: p.name,
+          fromColor: '#43a047',
+          toColor: p.color,
+        }
+        log(s, `💰 JACKPOT ! ${p.name} rafle la cagnotte de la Banque Koopa : ${pot} pièces !`, 'GOOD')
+        popup(
+          s,
+          '🏦 Banque Koopa',
+          `« QUOI ?! Pile sur ma case ?! » Tu rafles TOUTE la cagnotte : ${pot} pièces ! 💰`,
+          'GOOD',
+        )
+      } else {
+        popup(s, '🏦 Banque Koopa', '« Les coffres sont vides, repasse plus tard… » (cagnotte : 0)', 'NEUTRAL')
+      }
+      break
+    }
+    case 'REVERSE': {
+      p.reversed = !p.reversed
+      log(s, `⇄ ${p.name} ${p.reversed ? 'roule désormais à CONTRESENS' : 'retrouve le sens normal'} !`, 'BAD')
+      popup(
+        s,
+        '⇄ Inversion !',
+        p.reversed
+          ? 'La flèche s’inverse : tes prochains déplacements se feront à CONTRESENS du plateau !'
+          : 'Re-demi-tour : tu repars dans le bon sens de circulation.',
+        p.reversed ? 'BAD' : 'GOOD',
+      )
+      break
+    }
+    case 'WAYPOINT':
+      // quasi impossible (traversée gratuite) — ex. refus de portail sans issue
+      popup(s, '🛤️ Bas-côté', 'Tu campes sur le bas-côté du chemin. Rien à signaler.', 'NEUTRAL')
       break
     case 'SIP_PLUS':
       p.sipsTaken += s.config.sipPlus
@@ -576,6 +647,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         rewardDice: null,
         poisoned: false,
         trapped: false,
+        reversed: false,
         stats: { itemsUsed: 0, pitFalls: 0, wallsBroken: 0 },
       }))
       fresh.starSpaceId = pick(STAR_SPOTS)
@@ -813,7 +885,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       m.cameFrom = p.currentSpaceId
       p.currentSpaceId = m.hopTo!
       m.hopTo = null
-      m.remaining -= 1
+      m.hops = (m.hops ?? 0) + 1
+      // Case vide (WAYPOINT) : la traversée ne consomme PAS de déplacement
+      if (getSpace(p.currentSpaceId).type !== 'WAYPOINT') m.remaining -= 1
+      if (m.hops > 150) m.remaining = 0 // garde anti-boucle
       // Boisson dorée : +1 pièce par case (doc SMP)
       if (p.goldenDrink) addCoins(p, 1)
       // Peepa : 1 pièce volée par case, au profit du sonneur de cloche
@@ -871,6 +946,31 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           s.pending = { kind: 'SHOP_PROMPT', stock }
           return s
         }
+        // Banque Koopa : péage au PASSAGE (l'atterrissage pile = jackpot)
+        if (arrived.type === 'BANK' && m.remaining > 0) {
+          const toll = Math.min(BANK_TOLL, p.coins)
+          s.phase = 'PASS_EVENT'
+          s.focusSpaceId = p.currentSpaceId
+          if (toll > 0) {
+            addCoins(p, -toll)
+            s.bankPot += toll
+            log(s, `🏦 ${p.name} verse ${toll} pièce${toll > 1 ? 's' : ''} à la Banque Koopa (cagnotte : ${s.bankPot})`, 'BAD')
+            popup(
+              s,
+              '🏦 Banque Koopa',
+              `« Péage obligatoire ! » Le Koopa encaisse ${toll} pièce${toll > 1 ? 's' : ''}. Cagnotte : ${s.bankPot} 🪙 — elle ira au premier qui s'arrête PILE ici.`,
+              'BAD',
+            )
+          } else {
+            popup(
+              s,
+              '🏦 Banque Koopa',
+              `« Même pas UNE pièce ?! File, va-nu-pieds… » (cagnotte : ${s.bankPot} 🪙)`,
+              'NEUTRAL',
+            )
+          }
+          return s
+        }
       }
       continueOrLand(s)
       return s
@@ -879,10 +979,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'CHOOSE_FORK': {
       if (s.phase !== 'FORK_CHOICE' || !s.movement) return state
       const p = current(s)
-      const candidates = getSpace(p.currentSpaceId).nextSpaces
+      const candidates = movementCandidates(p, s.movement)
       if (!candidates.includes(action.nextSpaceId)) return state
-      s.movement.hopTo = action.nextSpaceId
-      s.phase = 'MOVING'
+      armHop(s, s.movement, action.nextSpaceId)
       return s
     }
 
@@ -897,12 +996,61 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       switch (choice.kind) {
         case 'DISMISS': {
           if (s.phase === 'PASS_EVENT') {
-            continueOrLand(s)
+            // un saut déjà armé (péage payé) reprend sa course telle quelle
+            if (s.movement?.hopTo) s.phase = 'MOVING'
+            else continueOrLand(s)
           } else if (s.phase === 'SPACE_ACTION') {
             if (s.movement && s.movement.remaining > 0) advanceMovement(s)
             else s.phase = 'TURN_END'
           }
           // en TURN_START (popup d'item) : on reste simplement sur place
+          return s
+        }
+        case 'GATE': {
+          if (pending.kind !== 'GATE_PROMPT' || !s.movement) return state
+          const m = s.movement
+          const cost = pending.cost
+          const affordable = (cost.coins ?? 0) <= p.coins && (cost.stars ?? 0) <= p.stars
+          if (choice.pay && affordable) {
+            if (cost.coins) addCoins(p, -cost.coins)
+            if (cost.stars) p.stars -= cost.stars
+            const price = cost.coins ? `${cost.coins} pièces` : `${cost.stars} Étoile ⭐`
+            m.hopTo = pending.targetId // saut armé : le OK relancera MOVING
+            s.fx = {
+              id: s.logSeq++,
+              kind: cost.stars ? 'STEAL_STAR' : 'STEAL_COINS',
+              amount: cost.coins ?? cost.stars ?? 0,
+              fromName: p.name,
+              toName: 'Le Portail',
+              fromColor: p.color,
+              toColor: '#8b5cf6',
+            }
+            log(s, `🚪 ${p.name} paie ${price} : le portail s'ouvre !`, 'NEUTRAL')
+            popup(
+              s,
+              '🚪 Portail ouvert !',
+              `Tu glisses ${price} dans la serrure… CLAC ! Le passage est à toi.`,
+              'GOOD',
+            )
+          } else {
+            // refus (ou pas les moyens) : déviation si possible, sinon on campe
+            const alternatives = movementCandidates(p, m).filter(
+              (c) => c !== m.cameFrom && c !== pending.targetId,
+            )
+            log(s, `🚪 ${p.name} laisse le portail fermé.`, 'NEUTRAL')
+            if (alternatives.length >= 1) {
+              m.hopTo = null
+              s.phase = 'FORK_CHOICE'
+            } else {
+              m.remaining = 0
+              popup(
+                s,
+                '🚪 Portail fermé',
+                'Pas de paiement, pas de passage. Tu restes planté devant la grille.',
+                'NEUTRAL',
+              )
+            }
+          }
           return s
         }
         case 'SIP_TARGET': {

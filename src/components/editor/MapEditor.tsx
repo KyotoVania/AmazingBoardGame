@@ -32,6 +32,9 @@ const TYPE_COLORS: Record<SpaceType, string> = {
   BAD_LUCK: '#7c2d4e',
   VS: '#f59022',
   ALLY: '#38bdf8',
+  BANK: '#43a047',
+  REVERSE: '#e11d48',
+  WAYPOINT: '#c9b380',
   SIP_PLUS: '#d97706',
   SIP_MINUS: '#0d9488',
 }
@@ -539,14 +542,24 @@ export function MapEditor() {
                     !
                   </text>
                 )}
-                {(s.hasBoo || s.hasMole || s.hasShop || s.wall || s.event === 'PIT') && (
+                {(s.hasBoo || s.hasMole || s.hasShop || s.wall || s.gate || s.event === 'PIT') && (
                   <text
                     y={-0.42}
                     textAnchor="middle"
                     fontSize={0.4}
                     style={{ pointerEvents: 'none' }}
                   >
-                    {s.hasBoo ? '👻' : s.hasMole ? '🦫' : s.hasShop ? '🛒' : s.wall ? '🧱' : '🕳️'}
+                    {s.hasBoo
+                      ? '👻'
+                      : s.hasMole
+                        ? '🦫'
+                        : s.hasShop
+                          ? '🛒'
+                          : s.wall
+                            ? '🧱'
+                            : s.gate
+                              ? '🚪'
+                              : '🕳️'}
                   </text>
                 )}
                 {vb.w < 16 && (
@@ -768,6 +781,7 @@ export function MapEditor() {
                 ['hasMole', '🦫 Topi Taupe'],
                 ['hasShop', '🛒 Boutique'],
                 ['wall', '🧱 Mur'],
+                ['gate', '🚪 Portail à péage'],
               ] as const
             ).map(([flag, label]) => (
               <label key={flag} className="flex items-center gap-2 text-sm font-bold">
