@@ -24,13 +24,23 @@
 |---|-------|--------|
 | 1 | Créer ce fichier | ✅ Fait |
 | 2 | Brancher `eventNarratives.ts` (textes trash/goofy faciles à custom) dans les dialogues | ✅ Fait — toutes les popups moteur + intros UI (arbre/Boo/VS) piochent dans les pools, mémoïsé par événement |
-| 3 | Autosave localStorage à chaque action + écran « Reprendre la partie ? » au boot | 🔄 En cours |
-| 4 | Mur : RELANCER un dé devant le mur (au lieu de réutiliser le lancer du tour) | ⬜ |
-| 5 | Slots GLB pour Arbre généreux, Arbre maudit, Topi Taupe, Boo | ⬜ |
-| 6 | Banque de modèles (`public/models/manifest.json`) + sélecteur de modèles dans le LOBBY (perso par perso + éléments du décor) — plus seulement via debug | ⬜ |
-| 7 | Événements CURSED random : toutes les ~10 min (configurable), image/GIF plein écran + FX ; banque dans `public/images/cursed/`, déclenchable manuellement en debug | ⬜ |
-| 8 | Commit par feature + typecheck 0 erreur à chaque étape | 🔄 Continu |
-| 9 | (Bonus si temps) Idées d'upgrades portfolio — voir section dédiée | ⬜ |
+| 3 | Autosave localStorage à chaque action + écran « Reprendre la partie ? » au boot | ✅ Fait — `autosave.ts`, action `LOAD_STATE` (fusion robuste avec les défauts), `ResumeBanner` au lobby, purge en GAME_OVER, 2 tests. Commit `dfb83de` |
+| 4 | Mur : RELANCER un dé devant le mur (au lieu de réutiliser le lancer du tour) | ✅ Fait — `WALL_PROMPT`/`WALL_TRY`, jet dédié 1-6 (honore forcedRoll debug), dialogue 🧱, narratifs WALL_BREAK/FAIL, tests réécrits déterministes. Commit `e8088c3` |
+| 5 | Slots GLB pour Arbre généreux, Arbre maudit, Topi Taupe, Boo | ✅ Fait — slots `TREE_GOOD/TREE_BAD/MOLE/BOO` (+STAR, P1-P4), `CustomOrDefault` avec `ModelErrorBoundary` (repli silencieux si .glb cassé/404). Commit `a7c4e82` |
+| 6 | Banque de modèles + sélecteur au LOBBY | ✅ Fait — `public/models/manifest.json` (`[{"name","file"}]`), `ModelPicker` partagé (dropdown banque + upload + ✕), intégré dans chaque carte joueur du lobby + section « Modèles 3D du plateau » + onglet ⚙️. Commit `a7c4e82` |
+| 7 | Événements CURSED random | ✅ Fait — `CursedOverlay` : toutes les `config.cursedIntervalMin` min (défaut 10, 0=off, réglable ⚙️), image random de `public/images/cursed/manifest.json` (`["fichier.gif"]`), strobo+glitch+shake+consigne du pool `CURSED` (eventNarratives), bouton 💀 dans le DebugPanel (event `www-cursed-now`). Commit `c58266d` |
+| 8 | Commit par feature + typecheck 0 erreur à chaque étape | ✅ 6 commits : `2f0d306` → `c58266d` |
+| 9 | Idées d'upgrades portfolio | 🔄 audit lancé, voir section Backlog enrichie |
+
+## 📣 À dire à l'utilisateur au réveil
+
+- Lancer `npm test` (les tests mur/Kamek/carrefours/save ont changé) puis `npm run dev`.
+- Pour la banque : remplir `public/models/manifest.json`, ex.
+  `[{ "name": "Grenouille", "file": "/models/frog.glb" }]`
+- Pour le cursed : déposer des images/GIFs dans `public/images/cursed/` et lister les noms
+  dans `public/images/cursed/manifest.json`, ex. `["jumpscare1.gif", "cursed_cat.png"]`.
+- Les sorts BAD_LUCK/GIVE/SIPS/BACK de Kamek, le mur, et tous les dialogues parlent
+  désormais en mode trash via `eventNarratives.ts` (c'est LE fichier à éditer pour le ton).
 
 ## 📝 Détails d'implémentation décidés
 
@@ -69,16 +79,43 @@
   eventNarratives `CURSED` si présent) + son ? (pas de son pour l'instant).
 - Bouton debug « 💀 Cursed now » dans le DebugPanel.
 
-## 💡 Backlog portfolio (pour les sessions suivantes)
+## 🔍 AUDIT COMPLET (agent Plan, 2026-06-12) — backlog priorisé
 
-- [ ] Sons / musique (Web Audio, assets libres dans public/sounds, volume dans ⚙️)
-- [ ] Post-processing (bloom sur l'Étoile, vignette) via @react-three/postprocessing (nécessite npm install utilisateur)
-- [ ] Mode plein écran TV + scaling UI (boutons plus gros à distance)
-- [ ] Historique de partie / stats de fin (gorgées totales, étoiles volées…) en écran final enrichi
-- [ ] Éditeur de map visuel (drag de cases) — gros chantier
-- [ ] i18n EN/FR pour le portfolio
-- [ ] README.md vitrine avec GIFs + déploiement GitHub Pages (`vite build` statique)
-- [ ] CI GitHub Actions : typecheck + vitest
+### Bugs / dettes repérés dans le code
+- ✅ **CORRIGÉ** (`271cc8f`) `prepareRoll` : le dé bonus partait même sur lancer forcé (forcedRoll mis à null AVANT le test) → `wasForced` capturé en tête.
+- ✅ **CORRIGÉ** (`271cc8f`) `LOAD_STATE` : `state.fx` sauvegardé rejouait l'effet visuel au restore → `fx: null`.
+- ⬜ Reducer pas 100 % pur : `pickNarrative` (Math.random) appelé DANS le moteur → pas de replay déterministe des textes. Fix : le reducer émet `{ narrativeKey, params }`, EventPopup tire le texte. Prérequis pour i18n/2e plateau.
+- ⬜ `EventPopup.popupCharacter()` devine le portrait par string-matching du titre FR (fragile) → ajouter `characterId?: EventCharacterId` dans `PendingAction.POPUP`.
+- ⬜ Seed RNG hors GameState (`rng.ts` singleton) → l'autosave ne restaure pas la séquence aléatoire. Mettre `rngState` dans l'état.
+- ⬜ Recul (arbre maudit/Kamek) : `pick(PREV[...])` aléatoire aux nœuds multi-prédécesseurs → peut reculer sur un chemin jamais emprunté. Mémoriser le chemin aller dans MovementState, ou documenter.
+- ⬜ `CursedOverlay` : timeouts non nettoyés à l'unmount, chevauchement possible de 2 summon.
+- ⬜ `LOAD_STATE` : valider la save (zod ?) ; bump manuel de SAVE_VERSION risqué si `Player` change.
+- ⬜ Duplication des maps de présentation SpaceType (Board3D vs ui/labels) → registre `spaceMeta` unique.
+
+### Backlog priorisé (quick wins → gros chantiers)
+| # | Item | Effort | Valeur | Statut |
+|---|------|--------|--------|--------|
+| 1 | README vitrine + LICENSE MIT (GIFs, badges, archi « reducer pur, la 3D anime des décisions déjà prises ») | S | ★★★★★ | ✅ `89a62c5` (GIFs/badges restent à ajouter quand la CI existera) |
+| 2 | ESLint flat config + scripts `lint`/`typecheck`/`smoke` (des eslint-disable existent sans ESLint installé !) | S | ★★★★ | ⬜ (npm install côté user requis) |
+| 3 | CI GitHub Actions : install → lint → typecheck → vitest → build → smoke + artifacts screenshots | S | ★★★★★ | ⬜ |
+| 4 | Fix bug dé bonus / lancer forcé | S | ★★★ | ✅ `271cc8f` |
+| 5 | GitHub Pages : `base` Vite + `assetUrl()` (BASE_URL) sur tous les fetch/chemins absolus | S/M | ★★★★★ | ✅ `89a62c5` — reste : le workflow deploy.yml |
+| 6 | Titres de fin cachés + twist dernière manche | S | ★★★★ | ✅ `72e0816` — 7 titres (Éponge, Dealer, Picsou, Fauché, Spéléologue, Démolisseur, Consommateur), stats itemsUsed/pitFalls/wallsBroken dans Player |
+| 7 | Purifier le reducer (narratifs par clé + characterId + RNG dans l'état) | M | ★★★★ | ⬜ prérequis de 12/15 |
+| 8 | Audio Web Audio 100 % procédural (`src/audio/sfx.ts`, hook `useGameAudio` branché sur `state.fx` + phases ; pièce = arpège sinus, dé = bruit filtré, étoile = arpège majeur, mur = pitch-drop, gorgées = glouglou) + mute/volume dans ⚙️ | M | ★★★★ | ⬜ |
+| 9 | Duel sur case occupée + boutique de Toad (choix d'achat à 3 items) | M | ★★★ | ⬜ |
+| 10 | Mode démo auto-play (bot qui dispatche des actions valides) → GIFs gratuits + preuve de pureté du moteur | M | ★★★★ | ⬜ |
+| 11 | Nombre de joueurs variable 2-6 (verrou à 4 : PLAYER_IDS, garde START_GAME, layouts 2v2) | M | ★★★ | ⬜ |
+| 12 | Plateau injecté (`BoardDef` dans l'état) → 2e map en pure data | M/L | ★★★★ | ⬜ |
+| 13 | 2-3 minijeux JOUABLES à l'écran (buzzer clavier 4 touches, stop-la-jauge, quiz) qui pré-remplissent SET_PODIUM | L | ★★★★★ | ⬜ le chantier le plus vendeur |
+| 14 | Package `party-kit` séparé | L | ★★ | ⬜ seulement après 7+12 |
+| 15 | i18n complète | L | ★ | ❌ déconseillé — README bilingue suffit |
+
+### Audio — recettes concrètes (pour l'item 8)
+Pas de howler (aucun fichier) : Web Audio pur, oscillateurs + enveloppes ADSR.
+Pièce 988→1319 Hz 80 ms ; dé = bursts bruit blanc filtré ; étoile = arpège majeur triangle ;
+mur = bruit + pitch-drop ; gorgées = sinus modulé descendant. Débloquer l'AudioContext au
+1er clic du lobby. Point d'ancrage : `useGameAudio(state)` réagissant à `fx.id` et `phase`.
 
 ## ⚠️ Points de vigilance connus
 
